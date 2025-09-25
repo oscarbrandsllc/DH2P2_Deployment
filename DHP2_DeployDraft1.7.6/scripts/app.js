@@ -3270,7 +3270,15 @@ const SEASON_META_HEADERS = {
         }
 
         function getPlayerVitals(playerId) {
-            const fallback = { age: '—', height: '—', weight: '—' };
+            const createVital = (display = '—', numeric = null) => ({ display, numeric });
+            const fallback = {
+                position: '',
+                age: createVital(),
+                height: createVital(),
+                weight: createVital(),
+                exp: '—',
+                ry: '—'
+            };
             const playerData = state.players?.[playerId];
             if (!playerData) return fallback;
 
@@ -3278,7 +3286,20 @@ const SEASON_META_HEADERS = {
                 .map(value => (typeof value === 'string' ? value.trim() : value))
                 .filter(value => value !== undefined && value !== null && value !== '');
 
+            const position = (playerData.position || playerData.metadata?.position || playerData.fantasy_positions?.[0] || '').toUpperCase();
+
+            const formatAge = (value) => {
+                if (!Number.isFinite(value) || value <= 0 || value >= 80) return null;
+                const rounded = Math.round(value * 10) / 10;
+                return createVital(rounded.toFixed(1), rounded);
+            };
+
             const parseAge = () => {
+                const sheetData = state.isSuperflex ? state.sflxData?.[playerId] : state.oneQbData?.[playerId];
+                const ageFromSheet = sheetData?.age;
+                const formattedFromSheet = formatAge(typeof ageFromSheet === 'number' ? ageFromSheet : Number.parseFloat(ageFromSheet));
+                if (formattedFromSheet) return formattedFromSheet;
+
                 const candidates = collect(
                     playerData.age,
                     playerData.metadata?.age,
@@ -3286,28 +3307,24 @@ const SEASON_META_HEADERS = {
                 );
 
                 for (const candidate of candidates) {
-                    const numeric = Number.parseInt(candidate, 10);
-                    if (Number.isFinite(numeric) && numeric > 0) {
-                        return String(numeric);
-                    }
+                    const numeric = Number.parseFloat(candidate);
+                    const formatted = formatAge(numeric);
+                    if (formatted) return formatted;
                 }
 
                 if (playerData.birthdate) {
                     const birth = new Date(playerData.birthdate);
                     if (!Number.isNaN(birth.getTime())) {
                         const today = new Date();
-                        let age = today.getFullYear() - birth.getFullYear();
-                        const hasHadBirthdayThisYear =
-                            today.getMonth() > birth.getMonth() ||
-                            (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
-                        if (!hasHadBirthdayThisYear) age -= 1;
-                        if (Number.isFinite(age) && age > 0 && age < 80) {
-                            return String(age);
-                        }
+                        const ageInMs = today.getTime() - birth.getTime();
+                        const averageYearMs = 365.2425 * 24 * 60 * 60 * 1000;
+                        const age = ageInMs / averageYearMs;
+                        const formatted = formatAge(age);
+                        if (formatted) return formatted;
                     }
                 }
 
-                return null;
+                return createVital();
             };
 
             const formatHeightFromParts = (feet, inches) => {
@@ -3318,7 +3335,8 @@ const SEASON_META_HEADERS = {
                 const safeInches = Number.isFinite(i) ? i % 12 : 0;
                 if (!Number.isFinite(safeFeet) || safeFeet <= 0) return null;
                 const boundedInches = Math.max(0, Math.min(11, safeInches));
-                return `${safeFeet}'${boundedInches}"`;
+                const totalInches = safeFeet * 12 + boundedInches;
+                return createVital(`${safeFeet}'${boundedInches}"`, totalInches);
             };
 
             const parseHeightString = (value) => {
@@ -3346,10 +3364,10 @@ const SEASON_META_HEADERS = {
                 if (only > 12) {
                     const feet = Math.floor(only / 12);
                     const inches = only % 12;
-                    return `${feet}'${inches}"`;
+                    return formatHeightFromParts(feet, inches);
                 }
 
-                return `${only}'0"`;
+                return formatHeightFromParts(only, 0);
             };
 
             const parseHeight = () => {
@@ -3379,7 +3397,7 @@ const SEASON_META_HEADERS = {
                     if (formatted) return formatted;
                 }
 
-                return null;
+                return createVital();
             };
 
             const parseWeight = () => {
@@ -3392,18 +3410,19 @@ const SEASON_META_HEADERS = {
                 );
 
                 for (const candidate of weightCandidates) {
-                    const numeric = Number.parseInt(candidate, 10);
+                    const numeric = Number.parseFloat(candidate);
                     if (Number.isFinite(numeric) && numeric > 0) {
-                        return `${numeric} lbs`;
+                        const rounded = Math.round(numeric);
+                        return createVital(`${rounded} lbs`, rounded);
                     }
                 }
 
-                return null;
+                return createVital();
             };
 
             const parseYearsExperience = () => {
                 const exp = playerData.years_exp;
-                if (exp === null || exp === undefined) return '—';
+                if (exp === null || exp === undefined || exp === '') return '—';
                 return String(exp);
             };
 
@@ -3413,34 +3432,145 @@ const SEASON_META_HEADERS = {
                     return String(rookieYear);
                 }
                 const exp = playerData.years_exp;
-                if (exp !== null && exp !== undefined) {
+                if (exp !== null && exp !== undefined && exp !== '') {
                     return String(2025 - Number(exp));
                 }
                 return '—';
             };
 
             return {
-                age: parseAge() ?? '—',
-                height: parseHeight() ?? '—',
-                weight: parseWeight() ?? '—',
+                position,
+                age: parseAge(),
+                height: parseHeight(),
+                weight: parseWeight(),
                 exp: parseYearsExperience(),
                 ry: parseRookieYear()
             };
         }
+
+        const PLAYER_VITALS_COLOR_RULES = {
+            AGE: {
+                'WR|TE': [
+                    { op: '<', value: 23.5, color: '#cefcf1' },
+                    { op: '<', value: 26.5, color: '#a0f0f9' },
+                    { op: '<', value: 29.0, color: '#c3c9ff' },
+                    { op: '<', value: 31.0, color: '#dfbbfe' },
+                    { op: '>=', value: 31.0, color: '#ffb8f4' }
+                ],
+                RB: [
+                    { op: '<', value: 23.0, color: '#cefcf1' },
+                    { op: '<', value: 25.0, color: '#a0f0f9' },
+                    { op: '<', value: 26.5, color: '#c3c9ff' },
+                    { op: '<', value: 28.0, color: '#dfbbfe' },
+                    { op: '>=', value: 28.0, color: '#ffb8f4' }
+                ],
+                QB: [
+                    { op: '<', value: 25.5, color: '#cefcf1' },
+                    { op: '<', value: 29.0, color: '#a0f0f9' },
+                    { op: '<', value: 33.5, color: '#c3c9ff' },
+                    { op: '<', value: 38.0, color: '#dfbbfe' },
+                    { op: '>=', value: 38.0, color: '#ffb8f4' }
+                ]
+            },
+            WEIGHT_lbs: {
+                QB: [
+                    { op: '<', value: 210, color: '#ffb8f4' },
+                    { op: '>', value: 250, color: '#ffb8f4' },
+                    { op: '>=', value: 210, color: '#c3efff' }
+                ],
+                RB: [
+                    { op: '<', value: 190, color: '#ffb8f4' },
+                    { op: '<', value: 200, color: '#c3c9ff' },
+                    { op: '>=', value: 200, color: '#cefcf1' }
+                ],
+                TE: [
+                    { op: '<', value: 230, color: '#ffb8f4' },
+                    { op: '<', value: 240, color: '#c3c9ff' },
+                    { op: '>=', value: 240, color: '#cefcf1' }
+                ],
+                WR: [
+                    { op: '<', value: 190, color: '#ffb8f4' },
+                    { op: '>=', value: 235, color: '#ffb8f4' },
+                    { op: '>=', value: 198, color: '#cefcf1' },
+                    { op: '>=', value: 190, color: '#c3c9ff' }
+                ]
+            },
+            HEIGHT_in: {
+                QB: [
+                    { op: '<', value: 72, color: '#ffb8f4' },
+                    { op: '>', value: 73, color: '#cefcf1' },
+                    { op: '>=', value: 72, color: '#c3c9ff' }
+                ],
+                RB: [
+                    { op: '<', value: 67, color: '#ffb8f4' },
+                    { op: '>=', value: 75, color: '#ffb8f4' },
+                    { op: '>', value: 69, color: '#cefcf1' },
+                    { op: '>=', value: 67, color: '#c3c9ff' }
+                ],
+                TE: [
+                    { op: '<', value: 73, color: '#ffb8f4' },
+                    { op: '>', value: 74, color: '#cefcf1' },
+                    { op: '>=', value: 73, color: '#c3c9ff' }
+                ],
+                WR: [
+                    { op: '<', value: 71, color: '#ffb8f4' },
+                    { op: '>', value: 72, color: '#cefcf1' },
+                    { op: '>=', value: 71, color: '#c3c9ff' }
+                ]
+            }
+        };
+
+        const getPlayerVitalColor = (category, position, value) => {
+            if (!Number.isFinite(value)) return null;
+            const rulesByPosition = PLAYER_VITALS_COLOR_RULES[category];
+            if (!rulesByPosition) return null;
+            const normalizedPosition = (position || '').toUpperCase();
+
+            for (const [posKey, rules] of Object.entries(rulesByPosition)) {
+                const positions = posKey.split('|').map(p => p.trim().toUpperCase());
+                if (!positions.includes(normalizedPosition)) continue;
+
+                for (const rule of rules) {
+                    const target = Number(rule.value);
+                    if (!Number.isFinite(target)) continue;
+                    switch (rule.op) {
+                        case '<':
+                            if (value < target) return rule.color;
+                            break;
+                        case '<=':
+                            if (value <= target) return rule.color;
+                            break;
+                        case '>':
+                            if (value > target) return rule.color;
+                            break;
+                        case '>=':
+                            if (value >= target) return rule.color;
+                            break;
+                        case '==':
+                            if (value === target) return rule.color;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            return null;
+        };
 
         function createPlayerVitalsElement(vitals, { variant = 'modal' } = {}) {
             const container = document.createElement('div');
             container.className = `player-vitals player-vitals--${variant}`;
 
             const items = [
-                { label: 'AGE', value: vitals.age },
-                { label: 'HEIGHT', value: vitals.height },
-                { label: 'WEIGHT', value: vitals.weight },
-                { label: 'EXP', value: vitals.exp },
-                { label: 'RY', value: vitals.ry }
+                { label: 'AGE', key: 'AGE', data: vitals.age },
+                { label: 'HEIGHT', key: 'HEIGHT_in', data: vitals.height },
+                { label: 'WEIGHT', key: 'WEIGHT_lbs', data: vitals.weight },
+                { label: 'EXP', data: { display: vitals.exp ?? '—' } },
+                { label: 'RY', data: { display: vitals.ry ?? '—' } }
             ];
 
-            items.forEach(({ label, value }) => {
+            items.forEach(({ label, key, data }) => {
                 const item = document.createElement('div');
                 item.className = 'player-vitals__item';
 
@@ -3450,7 +3580,15 @@ const SEASON_META_HEADERS = {
 
                 const valueEl = document.createElement('span');
                 valueEl.className = 'player-vitals__value';
-                valueEl.textContent = value;
+                valueEl.textContent = data?.display ?? '—';
+
+                if (key) {
+                    const color = getPlayerVitalColor(key, vitals.position, data?.numeric);
+                    if (color) {
+                        valueEl.style.backgroundColor = color;
+                        valueEl.classList.add('player-vitals__value--highlight');
+                    }
+                }
 
                 item.appendChild(labelEl);
                 item.appendChild(valueEl);
