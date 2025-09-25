@@ -3270,13 +3270,30 @@ const SEASON_META_HEADERS = {
         }
 
         function getPlayerVitals(playerId) {
-            const fallback = { age: '—', height: '—', weight: '—' };
+            const createFallbackVitalValue = () => ({ display: '—', numeric: null });
             const playerData = state.players?.[playerId];
-            if (!playerData) return fallback;
+            if (!playerData) {
+                return {
+                    position: null,
+                    age: createFallbackVitalValue(),
+                    height: createFallbackVitalValue(),
+                    weight: createFallbackVitalValue(),
+                    exp: '—',
+                    ry: '—'
+                };
+            }
 
             const collect = (...values) => values
                 .map(value => (typeof value === 'string' ? value.trim() : value))
                 .filter(value => value !== undefined && value !== null && value !== '');
+
+            const formatNumberDisplay = (value) => {
+                if (!Number.isFinite(value)) return null;
+                if (Math.abs(value - Math.round(value)) < 1e-6) {
+                    return String(Math.round(value));
+                }
+                return value.toFixed(1).replace(/\.0$/, '');
+            };
 
             const parseAge = () => {
                 const candidates = collect(
@@ -3286,9 +3303,12 @@ const SEASON_META_HEADERS = {
                 );
 
                 for (const candidate of candidates) {
-                    const numeric = Number.parseInt(candidate, 10);
-                    if (Number.isFinite(numeric) && numeric > 0) {
-                        return String(numeric);
+                    const numeric = Number.parseFloat(candidate);
+                    if (Number.isFinite(numeric) && numeric > 0 && numeric < 80) {
+                        return {
+                            display: formatNumberDisplay(numeric) ?? String(numeric),
+                            numeric
+                        };
                     }
                 }
 
@@ -3302,7 +3322,10 @@ const SEASON_META_HEADERS = {
                             (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
                         if (!hasHadBirthdayThisYear) age -= 1;
                         if (Number.isFinite(age) && age > 0 && age < 80) {
-                            return String(age);
+                            return {
+                                display: String(age),
+                                numeric: age
+                            };
                         }
                     }
                 }
@@ -3311,14 +3334,32 @@ const SEASON_META_HEADERS = {
             };
 
             const formatHeightFromParts = (feet, inches) => {
-                const f = Number.parseInt(feet, 10);
-                const i = Number.parseInt(inches, 10);
-                if (!Number.isFinite(f) && !Number.isFinite(i)) return null;
-                const safeFeet = Number.isFinite(f) ? f : Math.floor(i / 12);
-                const safeInches = Number.isFinite(i) ? i % 12 : 0;
+                const parsedFeet = Number.parseInt(feet, 10);
+                const parsedInches = Number.parseInt(inches, 10);
+
+                const hasFeet = Number.isFinite(parsedFeet);
+                const hasInches = Number.isFinite(parsedInches);
+
+                if (!hasFeet && !hasInches) return null;
+
+                let safeFeet = hasFeet ? parsedFeet : 0;
+                let safeInches = hasInches ? parsedInches : 0;
+
+                if (!hasFeet && hasInches) {
+                    safeFeet = Math.floor(parsedInches / 12);
+                    safeInches = parsedInches % 12;
+                }
+
                 if (!Number.isFinite(safeFeet) || safeFeet <= 0) return null;
+
                 const boundedInches = Math.max(0, Math.min(11, safeInches));
-                return `${safeFeet}'${boundedInches}"`;
+                const totalInches = safeFeet * 12 + boundedInches;
+                if (!Number.isFinite(totalInches) || totalInches <= 0) return null;
+
+                return {
+                    display: `${safeFeet}'${boundedInches}"`,
+                    numeric: totalInches
+                };
             };
 
             const parseHeightString = (value) => {
@@ -3329,7 +3370,8 @@ const SEASON_META_HEADERS = {
                 const digits = str.match(/\d+/g);
                 if (!digits || digits.length === 0) return null;
                 if (digits.length >= 2) {
-                    return formatHeightFromParts(digits[0], digits[1]);
+                    const formatted = formatHeightFromParts(digits[0], digits[1]);
+                    if (formatted) return formatted;
                 }
 
                 const only = Number.parseInt(digits[0], 10);
@@ -3346,10 +3388,11 @@ const SEASON_META_HEADERS = {
                 if (only > 12) {
                     const feet = Math.floor(only / 12);
                     const inches = only % 12;
-                    return `${feet}'${inches}"`;
+                    const formatted = formatHeightFromParts(feet, inches);
+                    if (formatted) return formatted;
                 }
 
-                return `${only}'0"`;
+                return formatHeightFromParts(only, 0);
             };
 
             const parseHeight = () => {
@@ -3394,7 +3437,10 @@ const SEASON_META_HEADERS = {
                 for (const candidate of weightCandidates) {
                     const numeric = Number.parseInt(candidate, 10);
                     if (Number.isFinite(numeric) && numeric > 0) {
-                        return `${numeric} lbs`;
+                        return {
+                            display: `${numeric} lbs`,
+                            numeric
+                        };
                     }
                 }
 
@@ -3419,13 +3465,169 @@ const SEASON_META_HEADERS = {
                 return '—';
             };
 
+            const resolvePosition = () => {
+                const positionCandidates = collect(
+                    playerData.position,
+                    playerData.pos,
+                    playerData.metadata?.position,
+                    Array.isArray(playerData.positions) ? playerData.positions[0] : null,
+                    Array.isArray(playerData.player_positions) ? playerData.player_positions[0] : null
+                );
+
+                for (const candidate of positionCandidates) {
+                    const raw = String(candidate).trim().toUpperCase();
+                    if (!raw) continue;
+                    const primary = raw.split(/[\s,\/|\-]+/)[0];
+                    if (primary) return primary;
+                }
+
+                return null;
+            };
+
+            const age = parseAge() ?? createFallbackVitalValue();
+            const height = parseHeight() ?? createFallbackVitalValue();
+            const weight = parseWeight() ?? createFallbackVitalValue();
+
             return {
-                age: parseAge() ?? '—',
-                height: parseHeight() ?? '—',
-                weight: parseWeight() ?? '—',
+                position: resolvePosition(),
+                age,
+                height,
+                weight,
                 exp: parseYearsExperience(),
                 ry: parseRookieYear()
             };
+        }
+
+        const AGE_COLOR_RULES = {
+            QB: [
+                { operator: '<', value: 25.5, color: '#cefcf1' },
+                { operator: '<', value: 29, color: '#a0f0f9' },
+                { operator: '<', value: 33, color: '#c3c9ff' },
+                { operator: '<', value: 40, color: '#dfbbfe' },
+                { operator: '<', value: 44, color: '#ffb8f4' },
+                { operator: 'default', color: '#ffb8f4' }
+            ],
+            RB: [
+                { operator: '<', value: 22.5, color: '#cefcf1' },
+                { operator: '<', value: 25, color: '#a0f0f9' },
+                { operator: '<', value: 27, color: '#c3c9ff' },
+                { operator: '<', value: 29, color: '#dfbbfe' },
+                { operator: '<', value: 31, color: '#ffb8f4' },
+                { operator: 'default', color: '#ffb8f4' }
+            ],
+            WR: [
+                { operator: '<', value: 22.5, color: '#cefcf1' },
+                { operator: '<', value: 26, color: '#a0f0f9' },
+                { operator: '<', value: 29, color: '#c3c9ff' },
+                { operator: '<', value: 31, color: '#dfbbfe' },
+                { operator: '<', value: 33, color: '#ffb8f4' },
+                { operator: 'default', color: '#ffb8f4' }
+            ],
+            TE: [
+                { operator: '<', value: 22.5, color: '#cefcf1' },
+                { operator: '<', value: 26, color: '#a0f0f9' },
+                { operator: '<', value: 29, color: '#c3c9ff' },
+                { operator: '<', value: 31, color: '#dfbbfe' },
+                { operator: '<', value: 33, color: '#ffb8f4' },
+                { operator: 'default', color: '#ffb8f4' }
+            ]
+        };
+
+        const WEIGHT_COLOR_RULES = {
+            QB: [
+                { operator: '<', value: 210, color: '#ffb8f4' },
+                { operator: '>', value: 250, color: '#ffb8f4' },
+                { operator: '>=', value: 210, color: '#c3efff' }
+            ],
+            RB: [
+                { operator: '<', value: 190, color: '#ffb8f4' },
+                { operator: '<', value: 200, color: '#c3c9ff' },
+                { operator: '>=', value: 200, color: '#cefcf1' }
+            ],
+            TE: [
+                { operator: '<', value: 230, color: '#ffb8f4' },
+                { operator: '<', value: 240, color: '#c3c9ff' },
+                { operator: '>=', value: 240, color: '#cefcf1' }
+            ],
+            WR: [
+                { operator: '<', value: 190, color: '#ffb8f4' },
+                { operator: '<', value: 198, color: '#c3c9ff' },
+                { operator: '<', value: 235, color: '#cefcf1' },
+                { operator: '>=', value: 235, color: '#ffb8f4' }
+            ]
+        };
+
+        const HEIGHT_COLOR_RULES = {
+            QB: [
+                { operator: '<', value: 72, color: '#ffb8f4' },
+                { operator: '<=', value: 73, color: '#c3c9ff' },
+                { operator: 'default', color: '#cefcf1' }
+            ],
+            RB: [
+                { operator: '<', value: 67, color: '#ffb8f4' },
+                { operator: '<=', value: 69, color: '#c3c9ff' },
+                { operator: '<', value: 75, color: '#cefcf1' },
+                { operator: 'default', color: '#ffb8f4' }
+            ],
+            TE: [
+                { operator: '<=', value: 72, color: '#ffb8f4' },
+                { operator: '<', value: 75, color: '#c3c9ff' },
+                { operator: 'default', color: '#cefcf1' }
+            ],
+            WR: [
+                { operator: '<', value: 71, color: '#ffb8f4' },
+                { operator: '<=', value: 72, color: '#c3c9ff' },
+                { operator: 'default', color: '#cefcf1' }
+            ]
+        };
+
+        function evaluateComparativeRules(value, rules) {
+            if (!Number.isFinite(value) || !Array.isArray(rules)) return null;
+            for (const rule of rules) {
+                switch (rule.operator) {
+                    case '<':
+                        if (value < rule.value) return rule.color;
+                        break;
+                    case '<=':
+                        if (value <= rule.value) return rule.color;
+                        break;
+                    case '>':
+                        if (value > rule.value) return rule.color;
+                        break;
+                    case '>=':
+                        if (value >= rule.value) return rule.color;
+                        break;
+                    case 'default':
+                        return rule.color;
+                    default:
+                        break;
+                }
+            }
+            return null;
+        }
+
+        function getVitalColor(type, position, value) {
+            if (!Number.isFinite(value)) return null;
+            if (!position) return null;
+            const normalizedPosition = position.toUpperCase();
+
+            if (type === 'age') {
+                const rules = AGE_COLOR_RULES[normalizedPosition];
+                if (normalizedPosition === 'TE' && !rules) {
+                    return evaluateComparativeRules(value, AGE_COLOR_RULES.WR);
+                }
+                return evaluateComparativeRules(value, rules);
+            }
+
+            if (type === 'weight') {
+                return evaluateComparativeRules(value, WEIGHT_COLOR_RULES[normalizedPosition]);
+            }
+
+            if (type === 'height') {
+                return evaluateComparativeRules(value, HEIGHT_COLOR_RULES[normalizedPosition]);
+            }
+
+            return null;
         }
 
         function createPlayerVitalsElement(vitals, { variant = 'modal' } = {}) {
@@ -3433,14 +3635,14 @@ const SEASON_META_HEADERS = {
             container.className = `player-vitals player-vitals--${variant}`;
 
             const items = [
-                { label: 'AGE', value: vitals.age },
-                { label: 'HEIGHT', value: vitals.height },
-                { label: 'WEIGHT', value: vitals.weight },
+                { label: 'AGE', value: vitals.age, type: 'age' },
+                { label: 'HEIGHT', value: vitals.height, type: 'height' },
+                { label: 'WEIGHT', value: vitals.weight, type: 'weight' },
                 { label: 'EXP', value: vitals.exp },
                 { label: 'RY', value: vitals.ry }
             ];
 
-            items.forEach(({ label, value }) => {
+            items.forEach(({ label, value, type }) => {
                 const item = document.createElement('div');
                 item.className = 'player-vitals__item';
 
@@ -3450,7 +3652,18 @@ const SEASON_META_HEADERS = {
 
                 const valueEl = document.createElement('span');
                 valueEl.className = 'player-vitals__value';
-                valueEl.textContent = value;
+                const displayValue = (value && typeof value === 'object' && value.display !== undefined)
+                    ? value.display
+                    : value;
+                valueEl.textContent = displayValue ?? '—';
+
+                if (type && value && typeof value === 'object') {
+                    const numericValue = value.numeric;
+                    const color = getVitalColor(type, vitals.position, numericValue);
+                    if (color) {
+                        valueEl.style.color = color;
+                    }
+                }
 
                 item.appendChild(labelEl);
                 item.appendChild(valueEl);
