@@ -3118,6 +3118,12 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
       line-height: 1;
     }
 
+    .player-vitals__value--highlighted {
+      color: var(--vital-highlight-color, #BDC1D8df) !important;
+      font-weight: 700;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+    }
+
     .player-vitals--modal {
       margin: 0.2rem 0 0.58rem;
     border: 1px solid #ffffff10;
