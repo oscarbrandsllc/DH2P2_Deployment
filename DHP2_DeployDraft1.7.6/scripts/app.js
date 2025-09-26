@@ -2340,97 +2340,54 @@ const wrTeStatOrder = [
             // Detailed Stats Table
             const table = document.createElement('table');
             table.className = 'player-comparison-table';
+            const isTwoPlayerCompare = players.length === 2;
+            if (isTwoPlayerCompare) {
+                table.classList.add('two-player-compare');
+            }
             const thead = document.createElement('thead');
             const tbody = document.createElement('tbody');
 
             // Table Header
             const tr = document.createElement('tr');
-            const statTh = document.createElement('th');
-            statTh.textContent = 'STAT';
-            statTh.className = 'stat-header';
-            tr.appendChild(statTh);
-            players.forEach(player => {
-                const fullPlayer = state.players[player.id];
-                const playerName = fullPlayer ? `${fullPlayer.first_name} ${fullPlayer.last_name}` : player.label;
-                const th = document.createElement('th');
-                th.className = 'player-header';
-                th.innerHTML = `<h4>${playerName}</h4>`;
-                tr.appendChild(th);
-            });
+            if (isTwoPlayerCompare) {
+                const player1 = players[0];
+                const fullPlayer1 = state.players[player1.id];
+                const playerName1 = fullPlayer1 ? `${fullPlayer1.first_name} ${fullPlayer1.last_name}` : player1.label;
+                const th1 = document.createElement('th');
+                th1.className = 'player-header';
+                th1.innerHTML = `<h4>${playerName1}</h4>`;
+                tr.appendChild(th1);
+
+                const statTh = document.createElement('th');
+                statTh.textContent = 'STAT';
+                statTh.className = 'stat-header';
+                tr.appendChild(statTh);
+
+                const player2 = players[1];
+                const fullPlayer2 = state.players[player2.id];
+                const playerName2 = fullPlayer2 ? `${fullPlayer2.first_name} ${fullPlayer2.last_name}` : player2.label;
+                const th2 = document.createElement('th');
+                th2.className = 'player-header';
+                th2.innerHTML = `<h4>${playerName2}</h4>`;
+                tr.appendChild(th2);
+            } else {
+                const statTh = document.createElement('th');
+                statTh.textContent = 'STAT';
+                statTh.className = 'stat-header';
+                tr.appendChild(statTh);
+                players.forEach(player => {
+                    const fullPlayer = state.players[player.id];
+                    const playerName = fullPlayer ? `${fullPlayer.first_name} ${fullPlayer.last_name}` : player.label;
+                    const th = document.createElement('th');
+                    th.className = 'player-header';
+                    th.innerHTML = `<h4>${playerName}</h4>`;
+                    tr.appendChild(th);
+                });
+            }
             thead.appendChild(tr);
 
             // Table Body
             const statLabels = buildStatLabels();
-
-            const userPlayer = players[0];
-            const otherPlayer = players[1];
-
-   const qbStatOrder = [
-  'fpts',
-  'pass_att',
-  'pass_cmp',
-  'pass_yd',
-  'pass_td',
-  'pass_fd',
-  'imp_per_g',
-  'pass_rtg',
-  'pass_imp',
-  'pass_imp_per_att',
-  'rush_yd',
-  'rush_td',
-  'rush_att',
-  'ypc',
-  'ttt',
-  'prs_pct',
-  'pass_sack',
-  'pass_int',
-  'fum'
-];
-
-const rbStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rush_att',
-  'rush_yd',
-  'ypc',
-  'rush_td',
-  'elu',
-  'rec',
-  'rec_tgt',
-  'rec_yd',
-  'mtf_per_att',
-  'yco_per_att',  
-  'mtf',
-  'rush_yac',
-  'rush_fd',
-  'rec_td',
-  'rec_fd',
-  'rec_yar',
-  'imp_per_g',
-  'fum'
-];
-
-const wrTeStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rec_tgt',
-  'rec',
-  'ts_per_rr',
-  'rec_yd',
-  'rec_td',
-  'yprr',
-  'rec_fd',
-  'first_down_rec_rate',
-  'rec_yar',
-  'ypr',
-  'imp_per_g',
-  'rr',
-  'rush_att',
-  'rush_yd',
-  'rush_td',
-  'ypc',
-  'fum'
-];
 
             const getStatOrderForPosition = (pos) => {
                 if (pos === 'QB') return qbStatOrder;
@@ -2439,14 +2396,22 @@ const wrTeStatOrder = [
                 return []; // default empty order
             };
 
-            const userPlayerStatOrder = getStatOrderForPosition(userPlayer.pos);
-            const otherPlayerStatOrder = getStatOrderForPosition(otherPlayer.pos);
+            let orderedStatKeys;
+            if (players.length >= 2) {
+                const userPlayerStatOrder = getStatOrderForPosition(players[0].pos);
+                const otherPlayerStatOrder = getStatOrderForPosition(players[1].pos);
 
-            const commonStats = userPlayerStatOrder.filter(stat => otherPlayerStatOrder.includes(stat));
-            const userSpecificStats = userPlayerStatOrder.filter(stat => !otherPlayerStatOrder.includes(stat));
-            const otherSpecificStats = otherPlayerStatOrder.filter(stat => !userPlayerStatOrder.includes(stat));
+                const commonStats = userPlayerStatOrder.filter(stat => otherPlayerStatOrder.includes(stat));
+                const userSpecificStats = userPlayerStatOrder.filter(stat => !otherPlayerStatOrder.includes(stat));
+                const otherSpecificStats = otherPlayerStatOrder.filter(stat => !userPlayerStatOrder.includes(stat));
 
-            const orderedStatKeys = [...commonStats, ...userSpecificStats, ...otherSpecificStats];
+                orderedStatKeys = [...commonStats, ...userSpecificStats, ...otherSpecificStats];
+            } else if (players.length === 1) {
+                orderedStatKeys = getStatOrderForPosition(players[0].pos);
+            } else {
+                orderedStatKeys = [];
+            }
+
 
             const league = state.leagues.find(l => l.league_id === state.currentLeagueId);
             const scoringSettings = league?.scoring_settings || {};
@@ -2454,7 +2419,6 @@ const wrTeStatOrder = [
             for (const statKey of orderedStatKeys) {
                 if (statLabels[statKey]) {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${statLabels[statKey]}</td>`;
 
                     let bestValue = -Infinity;
                     let bestValueIndices = [];
@@ -2473,6 +2437,7 @@ const wrTeStatOrder = [
                         const aggregatedTotals = {};
                         const snapPctValues = [];
                         const statValueCounts = {};
+                        const gameLogsWithData = player.gameLogs.filter(week => Object.keys(week.stats).length > 0);
 
                         player.gameLogs.forEach(week => {
                             for (const key in week.stats) {
@@ -2682,31 +2647,84 @@ const wrTeStatOrder = [
 
                     const useRankHighlight = bestRankIndices.length > 0;
 
-                    displayValues.forEach((val, i) => {
-                        const td = document.createElement('td');
-                        td.textContent = val;
-                        const rankAnnotation = rankAnnotations[i];
-                        if (rankAnnotation) {
-                            td.appendChild(rankAnnotation);
-                            td.classList.add('has-rank-annotation');
+                    if (isTwoPlayerCompare) {
+                        const player1Td = document.createElement('td');
+                        player1Td.textContent = displayValues[0];
+                        if (rankAnnotations[0]) {
+                            player1Td.appendChild(rankAnnotations[0]);
+                            player1Td.classList.add('has-rank-annotation');
                         }
-                        if (val !== 'N/A') {
+                        if (displayValues[0] !== 'N/A') {
                             if (useRankHighlight) {
-                                if (bestRankIndices.length > 1 && bestRankIndices.includes(i)) {
-                                    td.style.color = '#8ab4f8';
-                                } else if (bestRankIndices.length === 1 && bestRankIndices[0] === i) {
-                                    td.classList.add('best-stat');
+                                if (bestRankIndices.length > 1 && bestRankIndices.includes(0)) {
+                                    player1Td.style.color = '#8ab4f8';
+                                } else if (bestRankIndices.length === 1 && bestRankIndices[0] === 0) {
+                                    player1Td.classList.add('best-stat');
                                 }
                             } else {
-                                if (bestValueIndices.length > 1 && bestValueIndices.includes(i)) {
-                                    td.style.color = '#8ab4f8';
-                                } else if (bestValueIndices.length === 1 && bestValueIndices[0] === i) {
-                                    td.classList.add('best-stat');
+                                if (bestValueIndices.length > 1 && bestValueIndices.includes(0)) {
+                                    player1Td.style.color = '#8ab4f8';
+                                } else if (bestValueIndices.length === 1 && bestValueIndices[0] === 0) {
+                                    player1Td.classList.add('best-stat');
                                 }
                             }
                         }
-                        row.appendChild(td);
-                    });
+                        row.appendChild(player1Td);
+
+                        const statLabelTd = document.createElement('td');
+                        statLabelTd.textContent = statLabels[statKey];
+                        row.appendChild(statLabelTd);
+
+                        const player2Td = document.createElement('td');
+                        player2Td.textContent = displayValues[1];
+                        if (rankAnnotations[1]) {
+                            player2Td.appendChild(rankAnnotations[1]);
+                            player2Td.classList.add('has-rank-annotation');
+                        }
+                        if (displayValues[1] !== 'N/A') {
+                            if (useRankHighlight) {
+                                if (bestRankIndices.length > 1 && bestRankIndices.includes(1)) {
+                                    player2Td.style.color = '#8ab4f8';
+                                } else if (bestRankIndices.length === 1 && bestRankIndices[0] === 1) {
+                                    player2Td.classList.add('best-stat');
+                                }
+                            } else {
+                                if (bestValueIndices.length > 1 && bestValueIndices.includes(1)) {
+                                    player2Td.style.color = '#8ab4f8';
+                                } else if (bestValueIndices.length === 1 && bestValueIndices[0] === 1) {
+                                    player2Td.classList.add('best-stat');
+                                }
+                            }
+                        }
+                        row.appendChild(player2Td);
+                    } else {
+                         row.innerHTML = `<td>${statLabels[statKey]}</td>`;
+                         displayValues.forEach((val, i) => {
+                            const td = document.createElement('td');
+                            td.textContent = val;
+                            const rankAnnotation = rankAnnotations[i];
+                            if (rankAnnotation) {
+                                td.appendChild(rankAnnotation);
+                                td.classList.add('has-rank-annotation');
+                            }
+                            if (val !== 'N/A') {
+                                if (useRankHighlight) {
+                                    if (bestRankIndices.length > 1 && bestRankIndices.includes(i)) {
+                                        td.style.color = '#8ab4f8';
+                                    } else if (bestRankIndices.length === 1 && bestRankIndices[0] === i) {
+                                        td.classList.add('best-stat');
+                                    }
+                                } else {
+                                    if (bestValueIndices.length > 1 && bestValueIndices.includes(i)) {
+                                        td.style.color = '#8ab4f8';
+                                    } else if (bestValueIndices.length === 1 && bestValueIndices[0] === i) {
+                                        td.classList.add('best-stat');
+                                    }
+                                }
+                            }
+                            row.appendChild(td);
+                        });
+                    }
 
                     tbody.appendChild(row);
                 }

@@ -5575,6 +5575,24 @@ body[data-page="research"] .app-header {
     font-size: 0.72rem;
   }
 }
+
+/* Styles for two-player comparison view */
+.player-comparison-table.two-player-compare th:nth-child(1),
+.player-comparison-table.two-player-compare td:nth-child(1) {
+    width: 38%;
+}
+
+.player-comparison-table.two-player-compare th:nth-child(2),
+.player-comparison-table.two-player-compare td:nth-child(2) {
+    width: 24%;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.player-comparison-table.two-player-compare th:nth-child(3),
+.player-comparison-table.two-player-compare td:nth-child(3) {
+    width: 38%;
+}
 .syop-bar-controls {
   display: flex;
   flex-wrap: wrap;
