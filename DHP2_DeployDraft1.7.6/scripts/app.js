@@ -2340,6 +2340,9 @@ const wrTeStatOrder = [
             // Detailed Stats Table
             const table = document.createElement('table');
             table.className = 'player-comparison-table';
+            if (players.length === 2) {
+                table.classList.add('player-comparison-table--two-player');
+            }
             const thead = document.createElement('thead');
             const tbody = document.createElement('tbody');
 
@@ -2348,15 +2351,24 @@ const wrTeStatOrder = [
             const statTh = document.createElement('th');
             statTh.textContent = 'STAT';
             statTh.className = 'stat-header';
-            tr.appendChild(statTh);
-            players.forEach(player => {
+
+            const playerHeaders = players.map(player => {
                 const fullPlayer = state.players[player.id];
                 const playerName = fullPlayer ? `${fullPlayer.first_name} ${fullPlayer.last_name}` : player.label;
                 const th = document.createElement('th');
                 th.className = 'player-header';
                 th.innerHTML = `<h4>${playerName}</h4>`;
-                tr.appendChild(th);
+                return th;
             });
+
+            if (playerHeaders.length === 2) {
+                tr.appendChild(playerHeaders[0]);
+                tr.appendChild(statTh);
+                tr.appendChild(playerHeaders[1]);
+            } else {
+                tr.appendChild(statTh);
+                playerHeaders.forEach(th => tr.appendChild(th));
+            }
             thead.appendChild(tr);
 
             // Table Body
@@ -2454,7 +2466,9 @@ const wrTeStatOrder = [
             for (const statKey of orderedStatKeys) {
                 if (statLabels[statKey]) {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${statLabels[statKey]}</td>`;
+                    const statLabelCell = document.createElement('td');
+                    statLabelCell.textContent = statLabels[statKey];
+                    statLabelCell.className = 'stat-label-cell';
 
                     let bestValue = -Infinity;
                     let bestValueIndices = [];
@@ -2682,7 +2696,7 @@ const wrTeStatOrder = [
 
                     const useRankHighlight = bestRankIndices.length > 0;
 
-                    displayValues.forEach((val, i) => {
+                    const playerCells = displayValues.map((val, i) => {
                         const td = document.createElement('td');
                         td.textContent = val;
                         const rankAnnotation = rankAnnotations[i];
@@ -2690,6 +2704,7 @@ const wrTeStatOrder = [
                             td.appendChild(rankAnnotation);
                             td.classList.add('has-rank-annotation');
                         }
+                        td.classList.add('player-stat-cell');
                         if (val !== 'N/A') {
                             if (useRankHighlight) {
                                 if (bestRankIndices.length > 1 && bestRankIndices.includes(i)) {
@@ -2705,8 +2720,17 @@ const wrTeStatOrder = [
                                 }
                             }
                         }
-                        row.appendChild(td);
+                        return td;
                     });
+
+                    if (playerCells.length === 2) {
+                        row.appendChild(playerCells[0]);
+                        row.appendChild(statLabelCell);
+                        row.appendChild(playerCells[1]);
+                    } else {
+                        row.appendChild(statLabelCell);
+                        playerCells.forEach(cell => row.appendChild(cell));
+                    }
 
                     tbody.appendChild(row);
                 }
