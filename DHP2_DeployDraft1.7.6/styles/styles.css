@@ -3712,6 +3712,17 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     .player-comparison-table thead .player-header {
         width: 35%;
     }
+    .player-comparison-table td.stat-label-cell {
+        font-weight: 600;
+    }
+    .player-comparison-table--two-player thead .stat-header,
+    .player-comparison-table--two-player td.stat-label-cell {
+        width: 20%;
+    }
+    .player-comparison-table--two-player thead .player-header,
+    .player-comparison-table--two-player td.player-stat-cell {
+        width: 40%;
+    }
     
     .player-comparison-table tbody tr:nth-child(odd) {
         background-color: rgba(215, 205, 255, 0.03);
@@ -3956,6 +3967,16 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
 
     .player-comparison-table thead .player-header {
         width: 35%;
+    }
+
+    .player-comparison-table--two-player thead .stat-header,
+    .player-comparison-table--two-player td.stat-label-cell {
+        width: 26%;
+    }
+
+    .player-comparison-table--two-player thead .player-header,
+    .player-comparison-table--two-player td.player-stat-cell {
+        width: 37%;
     }
 
     #player-comparison-modal .player-comparison-table th,
