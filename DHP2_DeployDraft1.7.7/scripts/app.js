@@ -3616,14 +3616,14 @@ const wrTeStatOrder = [
         function getRankColor(rank) {
             if (typeof rank !== 'number') return 'var(--color-text-primary)';
             const thresholds = [
-                { v: 24, c: '#76ffd4bb' },
-                { v: 48, c: '#85fff3bb' },
-                { v: 72, c: '#7dd1ffcc' },
-                { v: 96, c: '#48a6ffcc' },
-                { v: 120, c: '#957cffdd' },
-                { v: 156, c: '#a642ffdd' },
-                { v: 180, c: '#cf60ffee' },
-                { v: 204, c: '#ff6fe1ee' },
+                { v: 24, c: '#76ffd499' },
+                { v: 48, c: '#85fff399' },
+                { v: 72, c: '#7dd1ffaa' },
+                { v: 96, c: '#48a6ffaa' },
+                { v: 120, c: '#957cffbb' },
+                { v: 156, c: '#a642ffbb' },
+                { v: 180, c: '#cf60ffcc' },
+                { v: 204, c: '#ff6fe1cc' },
                 { v: 250, c: '#ff2eb2' },
             ];
 
@@ -3638,32 +3638,32 @@ const wrTeStatOrder = [
         }
         function getConditionalColorByRank(rank) {
             if (typeof rank !== 'number' || rank <= 0)  return 'inherit';
-            if (rank <= 8) return '#76FFD49F';
-            if (rank <= 16) return '#48BEFFA7';
-            if (rank <= 24) return '#957CFFA2';
-            if (rank <= 32) return '#FF6FE190';
-            if (rank <= 60) return '#FF2EB290';
+            if (rank <= 8) return '#76FFD480';
+            if (rank <= 16) return '#48BEFF8C';
+            if (rank <= 24) return '#957CFF85';
+            if (rank <= 32) return '#FF6FE179';
+            if (rank <= 60) return '#FF2EB279';
             return '#767693A2';
         }
         function getKtcColor(v) {
           const s = [
-            { v: 9e3, c: "#00EEB6" },
-            { v: 8e3, c: "#14D7CB" },
-            { v: 7e3, c: "#0599AA" },
-            { v: 6e3, c: "#03a8ce" },
-            { v: 5500, c: "#0690DC" },
-            { v: 5e3, c: "#066CDC" },
-            { v: 4500, c: "#1350fd" },
-            { v: 4e3, c: "#5e41ff" },
-            { v: 3750, c: "#7158ff" },
-            { v: 3500, c: "#964eff" },
-            { v: 3250, c: "#9200ff" },
-            { v: 3e3, c: "#b70fff" },
-            { v: 2750, c: "#ba00cc" },
-            { v: 2500, c: "#e800ff" },
-            { v: 2250, c: "#db00af" },
-            { v: 2e3, c: "#c70097" },
-            { v: 0, c: "#FF0080" }
+            { v: 9e3, c: "#00EEB6B3" },
+            { v: 8e3, c: "#14D7CBB3" },
+            { v: 7e3, c: "#0599AAB3" },
+            { v: 6e3, c: "#03a8ceB3" },
+            { v: 5500, c: "#0690DCB3" },
+            { v: 5e3, c: "#066CDCB3" },
+            { v: 4500, c: "#1350fdB3" },
+            { v: 4e3, c: "#5e41ffB3" },
+            { v: 3750, c: "#7158ffB3" },
+            { v: 3500, c: "#964effB3" },
+            { v: 3250, c: "#9200ffB3" },
+            { v: 3e3, c: "#b70fffB3" },
+            { v: 2750, c: "#ba00ccB3" },
+            { v: 2500, c: "#e800ffB3" },
+            { v: 2250, c: "#db00afB3" },
+            { v: 2e3, c: "#c70097B3" },
+            { v: 0, c: "#FF0080B3" }
           ];
         
           if (v === null || v === 0) return "#e0e6ed";

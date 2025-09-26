@@ -1223,6 +1223,9 @@
             cursor: not-allowed;
             pointer-events: none;
     }
+    #clearTradeButton:not(:disabled) {
+      color: var(--color-text-secondary);
+    }
     
     
     
@@ -2347,6 +2350,7 @@ font-weight: 500 !important;
     -webkit-mask-size: 100% 100%;
     mask-size: 100% 100%;
     filter: drop-shadow(3px 2px 2px #5900ffed) drop-shadow(0px 0px 16px #7300ff58);
+    border-radius: 14px;
     }
 #welcome-screen .welcome-logo::after {
   content:""; position:absolute; inset:-4px; border-radius:14px; pointer-events:none;
