@@ -5385,6 +5385,14 @@ body[data-page="research"] .app-header {
   .syop-draft-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .syop-hero h1 {
+    font-size: clamp(3.45rem, 1.18rem + 0.85vw, 1.9rem);
+    margin: 0.0rem 0 0.0rem;
+    letter-spacing: -0.02em;
+    font-weight: 200;
+    text-align: center;
+  }
 }
 
 @media (max-width: 768px) {
