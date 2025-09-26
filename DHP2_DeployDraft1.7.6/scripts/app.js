@@ -2345,18 +2345,26 @@ const wrTeStatOrder = [
 
             // Table Header
             const tr = document.createElement('tr');
-            const statTh = document.createElement('th');
-            statTh.textContent = 'STAT';
-            statTh.className = 'stat-header';
-            tr.appendChild(statTh);
-            players.forEach(player => {
+            players.forEach((player, index) => {
                 const fullPlayer = state.players[player.id];
                 const playerName = fullPlayer ? `${fullPlayer.first_name} ${fullPlayer.last_name}` : player.label;
                 const th = document.createElement('th');
                 th.className = 'player-header';
                 th.innerHTML = `<h4>${playerName}</h4>`;
                 tr.appendChild(th);
+                if (index === 0) {
+                    const statTh = document.createElement('th');
+                    statTh.textContent = 'STAT';
+                    statTh.className = 'stat-header';
+                    tr.appendChild(statTh);
+                }
             });
+            if (players.length === 0) {
+                const statTh = document.createElement('th');
+                statTh.textContent = 'STAT';
+                statTh.className = 'stat-header';
+                tr.appendChild(statTh);
+            }
             thead.appendChild(tr);
 
             // Table Body
@@ -2454,7 +2462,9 @@ const wrTeStatOrder = [
             for (const statKey of orderedStatKeys) {
                 if (statLabels[statKey]) {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${statLabels[statKey]}</td>`;
+                    const labelCell = document.createElement('td');
+                    labelCell.textContent = statLabels[statKey];
+                    labelCell.className = 'stat-label-cell';
 
                     let bestValue = -Infinity;
                     let bestValueIndices = [];
@@ -2684,6 +2694,7 @@ const wrTeStatOrder = [
 
                     displayValues.forEach((val, i) => {
                         const td = document.createElement('td');
+                        td.classList.add('player-stat-cell');
                         td.textContent = val;
                         const rankAnnotation = rankAnnotations[i];
                         if (rankAnnotation) {
@@ -2705,7 +2716,12 @@ const wrTeStatOrder = [
                                 }
                             }
                         }
-                        row.appendChild(td);
+                        if (i === 0) {
+                            row.appendChild(td);
+                            row.appendChild(labelCell);
+                        } else {
+                            row.appendChild(td);
+                        }
                     });
 
                     tbody.appendChild(row);
