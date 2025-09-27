@@ -6760,3 +6760,21 @@ body[data-page="analyzer"] #leagueSelect {
 #dh-scramble .dh-dud { color: #7666b5 !important; opacity: 0.75; }
 
 /* === end loader block === */
+
+/* Centering on mobile for research page */
+@media (max-width: 768px) {
+  .syop-draft-hero .syop-hero-intro {
+    align-items: center;
+    text-align: center;
+  }
+  .syop-draft-hero .syop-hero-intro .syop-pill {
+    align-self: center;
+  }
+}
+
+/* Bigger text on desktop for research page */
+@media (min-width: 1024px) {
+  .syop-draft-hero h2 {
+    font-size: 2.2rem;
+  }
+}
