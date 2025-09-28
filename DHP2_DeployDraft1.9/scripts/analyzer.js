@@ -164,6 +164,39 @@
       },
     };
 
+    const RANK_GLYPHS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫'];
+
+    const formatRankGlyph = (rank) => {
+      if (!Number.isFinite(rank) || rank <= 0) return '';
+      if (rank <= RANK_GLYPHS.length) {
+        return RANK_GLYPHS[rank - 1];
+      }
+      return `${rank}.`;
+    };
+
+    const getCssFontValue = (variableName) => {
+      if (!variableName) return null;
+      const target = document.body || document.documentElement;
+      if (!target) return null;
+      const styles = getComputedStyle(target);
+      if (!styles) return null;
+      const value = styles.getPropertyValue(variableName);
+      return value ? value.trim() || null : null;
+    };
+
+    const scaleFontSize = (fontString, scale) => {
+      if (!fontString || typeof fontString !== 'string' || !Number.isFinite(scale)) {
+        return fontString;
+      }
+      const match = fontString.match(/(\d+(?:\.\d+)?)px/);
+      if (!match) return fontString;
+      const size = parseFloat(match[1]);
+      if (!Number.isFinite(size) || size <= 0) return fontString;
+      const scaled = size * scale;
+      const rounded = Math.round(scaled * 10) / 10;
+      return fontString.replace(match[0], `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded}px`);
+    };
+
     const barTotalsPlugin = {
       id: 'analyzerBarTotals',
       afterDatasetsDraw(chart, args, options) {
@@ -199,6 +232,31 @@
           });
         });
 
+        const rankedTotals = totals
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => Number.isFinite(value))
+          .sort((a, b) => {
+            if (b.value === a.value) {
+              return a.index - b.index;
+            }
+            return b.value - a.value;
+          });
+
+        const ranks = new Array(labelCount).fill(null);
+        let previousValue = null;
+        let previousRank = 0;
+        rankedTotals.forEach(({ value, index }, position) => {
+          if (!Number.isFinite(value)) return;
+          if (previousValue !== null && value === previousValue) {
+            ranks[index] = previousRank;
+            return;
+          }
+          const rank = position + 1;
+          ranks[index] = rank;
+          previousRank = rank;
+          previousValue = value;
+        });
+
         const ctx = chart.ctx;
         const offset = options.offset ?? 12;
         const font = options.font || '10px "Product Sans", "Google Sans", sans-serif';
@@ -206,6 +264,13 @@
         const color = options.color || '#EAEBF0';
         const formatter = options.formatter || ((val) => val.toFixed(0));
         const isMobileViewport = window.matchMedia('(max-width: 640px)').matches;
+        const labelFont = isMobileViewport ? mobileFont : font;
+        const cssGlyphFont = getCssFontValue(options.rankFontCssVar);
+        const glyphFont = cssGlyphFont
+          || (isMobileViewport ? options.rankMobileFont : options.rankFont)
+          || scaleFontSize(labelFont, options.rankFontScale ?? 1.6);
+        const glyphColor = options.rankColor || color;
+        const glyphSpacing = options.rankSpacing ?? (isHorizontal ? 7 : 5);
 
         totals.forEach((total, index) => {
           if (!Number.isFinite(total) || total === 0) return;
@@ -214,35 +279,105 @@
 
           const formatted = formatter(total, index);
           if (!formatted) return;
+          const rankGlyph = formatRankGlyph(ranks[index]);
 
           const center = isHorizontal ? element.y : element.x;
           const primaryPixel = primaryScale.getPixelForValue(total);
           const chartArea = chart.chartArea;
 
           ctx.save();
-          ctx.font = isMobileViewport ? mobileFont : font;
-          ctx.fillStyle = color;
           ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
-          ctx.textAlign = isHorizontal ? 'left' : 'center';
+
+          const layoutPadding = chart.options?.layout?.padding || 0;
+          const resolvePadding = (side) =>
+            (typeof layoutPadding === 'number' ? layoutPadding : layoutPadding?.[side] ?? 0);
+          const paddingRight = resolvePadding('right');
+          const paddingLeft = resolvePadding('left');
+
+          let glyphWidth = 0;
+          let labelWidth = 0;
+          let totalWidth = 0;
+
+          if (rankGlyph) {
+            ctx.font = glyphFont;
+            glyphWidth = ctx.measureText(rankGlyph).width;
+            ctx.font = labelFont;
+            labelWidth = ctx.measureText(formatted).width;
+            totalWidth = glyphWidth + glyphSpacing + labelWidth;
+          } else {
+            ctx.font = labelFont;
+            labelWidth = ctx.measureText(formatted).width;
+            totalWidth = labelWidth;
+          }
 
           let x = isHorizontal ? primaryPixel + offset : center;
           let y = isHorizontal ? center : primaryPixel - offset;
 
           if (isHorizontal) {
-            const layoutPadding = chart.options?.layout?.padding || 0;
-            const paddingRight = typeof layoutPadding === 'number' ? layoutPadding : layoutPadding.right || 0;
             const maxX = chart.width - paddingRight - 4;
-            if (x > maxX) {
-              x = maxX;
+            const minX = chartArea.left + paddingLeft + 4;
+            const maxStart = maxX - totalWidth;
+            if (Number.isFinite(maxStart)) {
+              x = Math.min(x, maxStart);
+            }
+            if (x < minX) {
+              x = minX;
             }
             y = center;
-          } else {
-            if (y < chartArea.top + 12) {
-              y = chartArea.top + 12;
-            }
+          } else if (y < chartArea.top + 12) {
+            y = chartArea.top + 12;
           }
 
-          ctx.fillText(formatted, x, y);
+          if (rankGlyph) {
+            ctx.textAlign = 'left';
+
+            if (isHorizontal) {
+              ctx.font = glyphFont;
+              ctx.fillStyle = glyphColor;
+              ctx.fillText(rankGlyph, x, y);
+
+              ctx.font = labelFont;
+              ctx.fillStyle = color;
+              ctx.fillText(formatted, x + glyphWidth + glyphSpacing, y);
+            } else {
+              const minStart = chartArea.left + paddingLeft + 4;
+              const maxStart = chartArea.right - paddingRight - 4 - totalWidth;
+              let startX = x - totalWidth / 2;
+              if (Number.isFinite(maxStart)) {
+                startX = Math.min(startX, maxStart);
+              }
+              if (startX < minStart) {
+                startX = minStart;
+              }
+
+              ctx.font = glyphFont;
+              ctx.fillStyle = glyphColor;
+              ctx.fillText(rankGlyph, startX, y);
+
+              ctx.font = labelFont;
+              ctx.fillStyle = color;
+              ctx.fillText(formatted, startX + glyphWidth + glyphSpacing, y);
+            }
+          } else {
+            ctx.font = labelFont;
+            ctx.fillStyle = color;
+            ctx.textAlign = isHorizontal ? 'left' : 'center';
+
+            if (isHorizontal) {
+              const maxX = chart.width - paddingRight - 4 - totalWidth;
+              const minX = chartArea.left + paddingLeft + 4;
+              let startX = x;
+              if (Number.isFinite(maxX)) {
+                startX = Math.min(startX, maxX);
+              }
+              if (startX < minX) {
+                startX = minX;
+              }
+              ctx.fillText(formatted, startX, y);
+            } else {
+              ctx.fillText(formatted, x, y);
+            }
+          }
           ctx.restore();
         });
       },
@@ -1283,6 +1418,7 @@
             offset: isMobile ? 10 : 18,
             formatter: (value) => formatter(value),
             mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
+            rankFontCssVar: '--analyzer-rank-glyph-font',
           },
         },
       };
@@ -1466,6 +1602,7 @@
               offset: totalsPluginOffset,
               formatter: (value) => formatNumber(value),
               mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
+              rankFontCssVar: '--analyzer-rank-glyph-font',
             },
           },
         },
@@ -1684,12 +1821,36 @@
       return index === -1 ? null : index + 1;
     }
 
+    const trimTrailingZeros = (numericString) => {
+      if (typeof numericString !== 'string') return numericString;
+      if (!numericString.includes('.')) return numericString;
+      return numericString.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0$/, '');
+    };
+
     function formatNumber(value) {
       if (!Number.isFinite(value)) return '0';
-      if (Math.abs(value) >= 1000) {
-        return Math.round(value).toLocaleString();
+
+      const abs = Math.abs(value);
+      const suffixes = [
+        { value: 1e9, suffix: 'B' },
+        { value: 1e6, suffix: 'M' },
+        { value: 1e3, suffix: 'k' },
+      ];
+
+      for (let i = 0; i < suffixes.length; i += 1) {
+        const { value: threshold, suffix } = suffixes[i];
+        if (abs >= threshold) {
+          let scaled = Math.round((value / threshold) * 10) / 10;
+          if (i > 0 && Math.abs(scaled) >= 1000) {
+            const { value: nextThreshold, suffix: nextSuffix } = suffixes[i - 1];
+            scaled = Math.round((value / nextThreshold) * 10) / 10;
+            return `${trimTrailingZeros(scaled.toFixed(1))}${nextSuffix}`;
+          }
+          return `${trimTrailingZeros(scaled.toFixed(1))}${suffix}`;
+        }
       }
-      return value.toFixed(0);
+
+      return Math.round(value).toLocaleString();
     }
 
     function formatPpg(value) {
