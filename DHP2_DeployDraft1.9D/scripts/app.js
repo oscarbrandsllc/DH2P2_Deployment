@@ -3427,11 +3427,26 @@ const wrTeStatOrder = [
             const playerData = state.players?.[playerId];
             if (!playerData) return fallback;
 
+            const valueData = state.isSuperflex
+                ? state.sflxData?.[playerId]
+                : state.oneQbData?.[playerId];
+
             const collect = (...values) => values
                 .map(value => (typeof value === 'string' ? value.trim() : value))
                 .filter(value => value !== undefined && value !== null && value !== '');
 
             const parseAge = () => {
+                const ageFromValues = valueData?.age;
+                if (typeof ageFromValues === 'number' && Number.isFinite(ageFromValues)) {
+                    return ageFromValues.toFixed(1);
+                }
+                if (typeof ageFromValues === 'string') {
+                    const numericAge = Number.parseFloat(ageFromValues);
+                    if (Number.isFinite(numericAge)) {
+                        return numericAge.toFixed(1);
+                    }
+                }
+
                 const candidates = collect(
                     playerData.age,
                     playerData.metadata?.age,
@@ -3439,9 +3454,9 @@ const wrTeStatOrder = [
                 );
 
                 for (const candidate of candidates) {
-                    const numeric = Number.parseInt(candidate, 10);
+                    const numeric = Number.parseFloat(candidate);
                     if (Number.isFinite(numeric) && numeric > 0) {
-                        return String(numeric);
+                        return numeric.toFixed(1);
                     }
                 }
 
@@ -3449,13 +3464,10 @@ const wrTeStatOrder = [
                     const birth = new Date(playerData.birthdate);
                     if (!Number.isNaN(birth.getTime())) {
                         const today = new Date();
-                        let age = today.getFullYear() - birth.getFullYear();
-                        const hasHadBirthdayThisYear =
-                            today.getMonth() > birth.getMonth() ||
-                            (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
-                        if (!hasHadBirthdayThisYear) age -= 1;
-                        if (Number.isFinite(age) && age > 0 && age < 80) {
-                            return String(age);
+                        const diffMs = today.getTime() - birth.getTime();
+                        const ageYears = diffMs / (1000 * 60 * 60 * 24 * 365.2425);
+                        if (Number.isFinite(ageYears) && ageYears > 0 && ageYears < 80) {
+                            return ageYears.toFixed(1);
                         }
                     }
                 }

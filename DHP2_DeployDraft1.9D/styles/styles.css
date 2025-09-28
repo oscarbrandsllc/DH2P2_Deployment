@@ -3171,10 +3171,12 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
       width: 100%;
       display: flex;
       justify-content: center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       column-gap: 0.5rem;
-      row-gap: 0.25rem;
-      white-space: normal;
+      row-gap: 0;
+      white-space: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       margin-bottom:2px;
     }
     .player-vitals--compare {
@@ -3209,7 +3211,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     }
 
     .player-vitals--compare .player-vitals__item {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
     }
 
     .player-vitals--compare .player-vitals__value {
@@ -3229,6 +3231,8 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
       justify-content: center;
       gap: 1rem;
       flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
     
     /* · · Summary Chips · · */
@@ -3647,10 +3651,12 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
         display: flex;
         justify-content: space-around;
         gap: 0.75rem;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         padding: 0.35rem 0;
         border-top: 1px solid var(--color-panel-border);
         border-bottom: 1px solid var(--color-panel-border);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
     /* · · Table Header · · */
@@ -4006,8 +4012,8 @@ Specificity: (0,2,1);
     }
 
     #player-comparison-modal .summary-chips-container {
-        flex-grow: 1;
-        flex-basis: 150px; /* Allow 2 chips per row on most phones */
+        flex: 0 0 auto;
+        min-width: 150px;
     }
 
 

@@ -1010,6 +1010,11 @@
       const standingsOrder = sortTeamsByStandings(teams);
       const overallRank = computeRank(standingsOrder, (team) => team.isUserTeam);
 
+      const totalValueRank = computeRank(
+        [...teams].sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0)),
+        (team) => team.isUserTeam,
+      );
+
       const starterValueRank = computeRank(
         [...teams].sort((a, b) => b.startersValueTotal - a.startersValueTotal),
         (team) => team.isUserTeam,
@@ -1051,7 +1056,13 @@
         {
           label: 'TTL Team Value',
           value: formatNumber(userTeam.totalValue),
-          meta: 'KTC',
+          meta: [
+            totalValueRank ? `Rank ${totalValueRank}/${totalTeams}` : totalTeams ? 'Rank NA' : null,
+            'KTC',
+          ]
+            .filter(Boolean)
+            .join(' • '),
+          accent: totalValueRank ? getRankColor(totalValueRank, totalTeams) : undefined,
         },
         {
           label: 'Starter Value',
@@ -1096,6 +1107,9 @@
     function renderLineupChart(teams) {
       state.lineupData = buildLineupDatasets(teams);
       if (state.charts.lineup) {
+        if (typeof state.charts.lineup.$cleanup === 'function') {
+          state.charts.lineup.$cleanup();
+        }
         state.charts.lineup.destroy();
       }
       const metricConfig = state.lineupData[state.currentLineupMetric];
@@ -1291,15 +1305,70 @@
     }
 
     function createStackedBarChart(canvas, labels, datasets, options) {
-      return new Chart(canvas, {
+      const chart = new Chart(canvas, {
         type: 'bar',
         data: { labels, datasets },
         options,
       });
+
+      const canvasEl = chart.canvas;
+      if (!canvasEl) {
+        return chart;
+      }
+
+      const clearActiveElements = () => {
+        if (!chart) return;
+        const hasActive = typeof chart.getActiveElements === 'function'
+          ? chart.getActiveElements().length > 0
+          : Array.isArray(chart._active) && chart._active.length > 0;
+        const tooltip = chart.tooltip;
+        const tooltipActive =
+          typeof tooltip?.getActiveElements === 'function'
+            ? tooltip.getActiveElements().length > 0
+            : Array.isArray(tooltip?.active) && tooltip.active.length > 0;
+        if (!hasActive && !tooltipActive) return;
+
+        chart.setActiveElements([]);
+        if (tooltip && typeof tooltip.setActiveElements === 'function') {
+          tooltip.setActiveElements([], { x: 0, y: 0 });
+        }
+        chart.update('none');
+      };
+
+      const handleCanvasPointerDown = (event) => {
+        const elements = chart.getElementsAtEventForMode(
+          event,
+          'nearest',
+          { intersect: true },
+          false,
+        );
+        if (!elements.length) {
+          clearActiveElements();
+        }
+      };
+
+      const handleDocumentPointerDown = (event) => {
+        if (canvasEl.contains(event.target)) return;
+        clearActiveElements();
+      };
+
+      const listenerOptions = { passive: true };
+      canvasEl.addEventListener('pointerdown', handleCanvasPointerDown, listenerOptions);
+      document.addEventListener('pointerdown', handleDocumentPointerDown, listenerOptions);
+
+      chart.$cleanup = () => {
+        canvasEl.removeEventListener('pointerdown', handleCanvasPointerDown, listenerOptions);
+        document.removeEventListener('pointerdown', handleDocumentPointerDown, listenerOptions);
+      };
+
+      return chart;
     }
 
     function renderOverallChart(teams) {
       if (state.charts.overall) {
+        if (typeof state.charts.overall.$cleanup === 'function') {
+          state.charts.overall.$cleanup();
+        }
         state.charts.overall.destroy();
       }
 
