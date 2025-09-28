@@ -3432,6 +3432,13 @@ const wrTeStatOrder = [
                 .filter(value => value !== undefined && value !== null && value !== '');
 
             const parseAge = () => {
+                const valueData = state.isSuperflex ? state.sflxData?.[playerId] : state.oneQbData?.[playerId];
+                const ageFromSheet = valueData?.age;
+
+                if (typeof ageFromSheet === 'number') {
+                    return ageFromSheet.toFixed(1);
+                }
+
                 const candidates = collect(
                     playerData.age,
                     playerData.metadata?.age,
@@ -3441,7 +3448,7 @@ const wrTeStatOrder = [
                 for (const candidate of candidates) {
                     const numeric = Number.parseInt(candidate, 10);
                     if (Number.isFinite(numeric) && numeric > 0) {
-                        return String(numeric);
+                        return Number(numeric).toFixed(1);
                     }
                 }
 
@@ -3455,7 +3462,7 @@ const wrTeStatOrder = [
                             (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
                         if (!hasHadBirthdayThisYear) age -= 1;
                         if (Number.isFinite(age) && age > 0 && age < 80) {
-                            return String(age);
+                            return Number(age).toFixed(1);
                         }
                     }
                 }

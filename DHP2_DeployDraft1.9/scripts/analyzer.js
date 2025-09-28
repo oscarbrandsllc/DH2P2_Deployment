@@ -1015,6 +1015,11 @@
         (team) => team.isUserTeam,
       );
 
+      const totalValueRank = computeRank(
+        [...teams].sort((a, b) => b.totalValue - a.totalValue),
+        (team) => team.isUserTeam,
+      );
+
       const fptsRank = computeRank(
         [...teams].sort((a, b) => b.totalFpts - a.totalFpts),
         (team) => team.isUserTeam,
@@ -1051,7 +1056,8 @@
         {
           label: 'TTL Team Value',
           value: formatNumber(userTeam.totalValue),
-          meta: 'KTC',
+          meta: totalValueRank ? `Rank ${totalValueRank}/${totalTeams}` : 'KTC',
+          accent: totalValueRank ? getRankColor(totalValueRank, totalTeams) : undefined,
         },
         {
           label: 'Starter Value',
@@ -1172,6 +1178,11 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         interaction: { mode: 'nearest', intersect: false },
+        onClick: (evt, elements) => {
+          if (elements.length === 0) {
+            hideAllActiveTooltips();
+          }
+        },
         layout: {
           padding: {
             left: isMobile ? 2 : 4,
@@ -1340,6 +1351,11 @@
           maintainAspectRatio: false,
           indexAxis: 'y',
           interaction: { mode: 'nearest', intersect: false },
+          onClick: (evt, elements) => {
+            if (elements.length === 0) {
+              hideAllActiveTooltips();
+            }
+          },
           layout: {
             padding: {
               left: isMobile ? 2 : 4,
@@ -1673,5 +1689,20 @@
       if (percentile >= 0.2) return '#FF7F50';
       return '#FF3A75';
     }
+
+    function hideAllActiveTooltips() {
+      Object.values(state.charts).forEach(chart => {
+        if (chart && chart.tooltip && chart.tooltip.getActiveElements().length) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update();
+        }
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      if (e.target.nodeName !== 'CANVAS') {
+        hideAllActiveTooltips();
+      }
+    });
   });
 })();
