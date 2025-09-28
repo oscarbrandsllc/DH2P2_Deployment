@@ -164,6 +164,29 @@
       },
     };
 
+    const RANK_GLYPHS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫'];
+
+    const formatRankGlyph = (rank) => {
+      if (!Number.isFinite(rank) || rank <= 0) return '';
+      if (rank <= RANK_GLYPHS.length) {
+        return RANK_GLYPHS[rank - 1];
+      }
+      return `${rank}.`;
+    };
+
+    const scaleFontSize = (fontString, scale) => {
+      if (!fontString || typeof fontString !== 'string' || !Number.isFinite(scale)) {
+        return fontString;
+      }
+      const match = fontString.match(/(\d+(?:\.\d+)?)px/);
+      if (!match) return fontString;
+      const size = parseFloat(match[1]);
+      if (!Number.isFinite(size) || size <= 0) return fontString;
+      const scaled = size * scale;
+      const rounded = Math.round(scaled * 10) / 10;
+      return fontString.replace(match[0], `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded}px`);
+    };
+
     const barTotalsPlugin = {
       id: 'analyzerBarTotals',
       afterDatasetsDraw(chart, args, options) {
@@ -199,6 +222,31 @@
           });
         });
 
+        const rankedTotals = totals
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => Number.isFinite(value))
+          .sort((a, b) => {
+            if (b.value === a.value) {
+              return a.index - b.index;
+            }
+            return b.value - a.value;
+          });
+
+        const ranks = new Array(labelCount).fill(null);
+        let previousValue = null;
+        let previousRank = 0;
+        rankedTotals.forEach(({ value, index }, position) => {
+          if (!Number.isFinite(value)) return;
+          if (previousValue !== null && value === previousValue) {
+            ranks[index] = previousRank;
+            return;
+          }
+          const rank = position + 1;
+          ranks[index] = rank;
+          previousRank = rank;
+          previousValue = value;
+        });
+
         const ctx = chart.ctx;
         const offset = options.offset ?? 12;
         const font = options.font || '10px "Product Sans", "Google Sans", sans-serif';
@@ -206,6 +254,11 @@
         const color = options.color || '#EAEBF0';
         const formatter = options.formatter || ((val) => val.toFixed(0));
         const isMobileViewport = window.matchMedia('(max-width: 640px)').matches;
+        const labelFont = isMobileViewport ? mobileFont : font;
+        const glyphFont = (isMobileViewport ? options.rankMobileFont : options.rankFont)
+          || scaleFontSize(labelFont, options.rankFontScale ?? 1.6);
+        const glyphColor = options.rankColor || color;
+        const glyphSpacing = options.rankSpacing ?? (isHorizontal ? 7 : 5);
 
         totals.forEach((total, index) => {
           if (!Number.isFinite(total) || total === 0) return;
@@ -214,16 +267,14 @@
 
           const formatted = formatter(total, index);
           if (!formatted) return;
+          const rankGlyph = formatRankGlyph(ranks[index]);
 
           const center = isHorizontal ? element.y : element.x;
           const primaryPixel = primaryScale.getPixelForValue(total);
           const chartArea = chart.chartArea;
 
           ctx.save();
-          ctx.font = isMobileViewport ? mobileFont : font;
-          ctx.fillStyle = color;
           ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
-          ctx.textAlign = isHorizontal ? 'left' : 'center';
 
           let x = isHorizontal ? primaryPixel + offset : center;
           let y = isHorizontal ? center : primaryPixel - offset;
@@ -242,7 +293,43 @@
             }
           }
 
-          ctx.fillText(formatted, x, y);
+          if (rankGlyph) {
+            ctx.textAlign = 'left';
+
+            ctx.font = glyphFont;
+            const glyphWidth = ctx.measureText(rankGlyph).width;
+
+            if (isHorizontal) {
+              ctx.fillStyle = glyphColor;
+              ctx.fillText(rankGlyph, x, y);
+
+              ctx.font = labelFont;
+              ctx.fillStyle = color;
+              ctx.fillText(formatted, x + glyphWidth + glyphSpacing, y);
+            } else {
+              ctx.font = glyphFont;
+              ctx.fillStyle = glyphColor;
+              const measuredGlyphWidth = glyphWidth;
+
+              ctx.font = labelFont;
+              const labelWidth = ctx.measureText(formatted).width;
+              const totalWidth = measuredGlyphWidth + glyphSpacing + labelWidth;
+              const startX = x - totalWidth / 2;
+
+              ctx.font = glyphFont;
+              ctx.fillStyle = glyphColor;
+              ctx.fillText(rankGlyph, startX, y);
+
+              ctx.font = labelFont;
+              ctx.fillStyle = color;
+              ctx.fillText(formatted, startX + measuredGlyphWidth + glyphSpacing, y);
+            }
+          } else {
+            ctx.font = labelFont;
+            ctx.fillStyle = color;
+            ctx.textAlign = isHorizontal ? 'left' : 'center';
+            ctx.fillText(formatted, x, y);
+          }
           ctx.restore();
         });
       },
@@ -1684,12 +1771,36 @@
       return index === -1 ? null : index + 1;
     }
 
+    const trimTrailingZeros = (numericString) => {
+      if (typeof numericString !== 'string') return numericString;
+      if (!numericString.includes('.')) return numericString;
+      return numericString.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0$/, '');
+    };
+
     function formatNumber(value) {
       if (!Number.isFinite(value)) return '0';
-      if (Math.abs(value) >= 1000) {
-        return Math.round(value).toLocaleString();
+
+      const abs = Math.abs(value);
+      const suffixes = [
+        { value: 1e9, suffix: 'B' },
+        { value: 1e6, suffix: 'M' },
+        { value: 1e3, suffix: 'k' },
+      ];
+
+      for (let i = 0; i < suffixes.length; i += 1) {
+        const { value: threshold, suffix } = suffixes[i];
+        if (abs >= threshold) {
+          let scaled = Math.round((value / threshold) * 10) / 10;
+          if (i > 0 && Math.abs(scaled) >= 1000) {
+            const { value: nextThreshold, suffix: nextSuffix } = suffixes[i - 1];
+            scaled = Math.round((value / nextThreshold) * 10) / 10;
+            return `${trimTrailingZeros(scaled.toFixed(1))}${nextSuffix}`;
+          }
+          return `${trimTrailingZeros(scaled.toFixed(1))}${suffix}`;
+        }
       }
-      return value.toFixed(0);
+
+      return Math.round(value).toLocaleString();
     }
 
     function formatPpg(value) {
