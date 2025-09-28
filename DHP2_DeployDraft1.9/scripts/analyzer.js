@@ -164,6 +164,16 @@
       },
     };
 
+    const RANK_GLYPHS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫'];
+
+    const formatRankGlyph = (rank) => {
+      if (!Number.isFinite(rank) || rank <= 0) return '';
+      if (rank <= RANK_GLYPHS.length) {
+        return RANK_GLYPHS[rank - 1];
+      }
+      return `${rank}.`;
+    };
+
     const barTotalsPlugin = {
       id: 'analyzerBarTotals',
       afterDatasetsDraw(chart, args, options) {
@@ -199,6 +209,31 @@
           });
         });
 
+        const rankedTotals = totals
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => Number.isFinite(value))
+          .sort((a, b) => {
+            if (b.value === a.value) {
+              return a.index - b.index;
+            }
+            return b.value - a.value;
+          });
+
+        const ranks = new Array(labelCount).fill(null);
+        let previousValue = null;
+        let previousRank = 0;
+        rankedTotals.forEach(({ value, index }, position) => {
+          if (!Number.isFinite(value)) return;
+          if (previousValue !== null && value === previousValue) {
+            ranks[index] = previousRank;
+            return;
+          }
+          const rank = position + 1;
+          ranks[index] = rank;
+          previousRank = rank;
+          previousValue = value;
+        });
+
         const ctx = chart.ctx;
         const offset = options.offset ?? 12;
         const font = options.font || '10px "Product Sans", "Google Sans", sans-serif';
@@ -214,6 +249,8 @@
 
           const formatted = formatter(total, index);
           if (!formatted) return;
+          const rankGlyph = formatRankGlyph(ranks[index]);
+          const labelText = rankGlyph ? `${rankGlyph} ${formatted}` : formatted;
 
           const center = isHorizontal ? element.y : element.x;
           const primaryPixel = primaryScale.getPixelForValue(total);
@@ -242,7 +279,7 @@
             }
           }
 
-          ctx.fillText(formatted, x, y);
+          ctx.fillText(labelText, x, y);
           ctx.restore();
         });
       },
