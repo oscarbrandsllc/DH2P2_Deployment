@@ -3652,6 +3652,33 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
         border-top: 1px solid var(--color-panel-border);
         border-bottom: 1px solid var(--color-panel-border);
     }
+
+    @media (max-width: 640px) {
+      .player-vitals--modal,
+      .player-vitals--compare {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        justify-content: flex-start;
+      }
+
+      .player-vitals--compare {
+        column-gap: 0.65rem;
+      }
+
+      .player-vitals--compare .player-vitals__item {
+        flex: 0 0 auto;
+      }
+
+      .comparison-summary-chips-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        justify-content: flex-start;
+      }
+
+      .comparison-summary-chips-row .summary-chip {
+        flex: 0 0 auto;
+      }
+    }
     
     /* · · Table Header · · */
     .player-header h4 {
