@@ -6052,6 +6052,10 @@ body[data-page="research"] .app-header {
 
 
 /* === League Analyzer Refresh === */
+body[data-page="analyzer"] {
+  --analyzer-rank-glyph-font: 18px "Product Sans", "Google Sans", sans-serif;
+}
+
 body[data-page="analyzer"] .analyzer-main {
   display: flex;
   flex-direction: column;
