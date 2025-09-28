@@ -164,6 +164,26 @@
       },
     };
 
+    const RANK_GLYPHS = [
+      '①',
+      '②',
+      '③',
+      '④',
+      '⑤',
+      '⑥',
+      '⑦',
+      '⑧',
+      '⑨',
+      '⑩',
+      '⑪',
+      '⑫',
+    ];
+
+    function getRankGlyph(rank) {
+      if (!Number.isInteger(rank) || rank <= 0) return '';
+      return RANK_GLYPHS[rank - 1] || `#${rank}`;
+    }
+
     const barTotalsPlugin = {
       id: 'analyzerBarTotals',
       afterDatasetsDraw(chart, args, options) {
@@ -203,9 +223,33 @@
         const offset = options.offset ?? 12;
         const font = options.font || '10px "Product Sans", "Google Sans", sans-serif';
         const mobileFont = options.mobileFont || '9px "Product Sans", "Google Sans", sans-serif';
+        const rankFontDefault = '600 14px "Product Sans", "Google Sans", sans-serif';
+        const rankMobileFontDefault = '600 12px "Product Sans", "Google Sans", sans-serif';
+        const rankFont = options.rankFont || rankFontDefault;
+        const rankMobileFont = options.rankMobileFont || options.rankFont || rankMobileFontDefault;
+        const rankSpacing = options.rankSpacing ?? (isHorizontal ? 6 : 4);
         const color = options.color || '#EAEBF0';
         const formatter = options.formatter || ((val) => val.toFixed(0));
         const isMobileViewport = window.matchMedia('(max-width: 640px)').matches;
+
+        const rankEntries = totals
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => Number.isFinite(value));
+
+        const sortedRanks = [...rankEntries].sort((a, b) => b.value - a.value);
+        const rankLookup = new Array(labelCount).fill(null);
+        let lastValue = null;
+        let lastRank = 0;
+
+        sortedRanks.forEach((entry, position) => {
+          const { value, index } = entry;
+          if (!Number.isFinite(value)) return;
+          if (lastValue === null || value !== lastValue) {
+            lastRank = position + 1;
+            lastValue = value;
+          }
+          rankLookup[index] = lastRank;
+        });
 
         totals.forEach((total, index) => {
           if (!Number.isFinite(total) || total === 0) return;
@@ -215,34 +259,68 @@
           const formatted = formatter(total, index);
           if (!formatted) return;
 
+          const rank = rankLookup[index];
+          const rankGlyph = rank ? getRankGlyph(rank) : '';
+
           const center = isHorizontal ? element.y : element.x;
           const primaryPixel = primaryScale.getPixelForValue(total);
           const chartArea = chart.chartArea;
 
-          ctx.save();
-          ctx.font = isMobileViewport ? mobileFont : font;
-          ctx.fillStyle = color;
-          ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
-          ctx.textAlign = isHorizontal ? 'left' : 'center';
-
           let x = isHorizontal ? primaryPixel + offset : center;
           let y = isHorizontal ? center : primaryPixel - offset;
+
+          if (!isHorizontal && y < chartArea.top + 12) {
+            y = chartArea.top + 12;
+          }
+
+          const valueFont = isMobileViewport ? mobileFont : font;
+          const glyphFont = isMobileViewport ? rankMobileFont : rankFont;
+
+          ctx.save();
+          ctx.fillStyle = color;
+          ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
+          ctx.textAlign = 'left';
+
+          ctx.font = valueFont;
+          const valueWidth = ctx.measureText(formatted).width;
+          let glyphWidth = 0;
+          if (rankGlyph) {
+            ctx.font = glyphFont;
+            glyphWidth = ctx.measureText(rankGlyph).width;
+          }
+          const spacing = rankGlyph ? rankSpacing : 0;
+          const totalLabelWidth = glyphWidth + spacing + valueWidth;
 
           if (isHorizontal) {
             const layoutPadding = chart.options?.layout?.padding || 0;
             const paddingRight = typeof layoutPadding === 'number' ? layoutPadding : layoutPadding.right || 0;
+            const paddingLeft = typeof layoutPadding === 'number' ? layoutPadding : layoutPadding.left || 0;
+            const minX = (chartArea?.left || 0) + paddingLeft + 4;
             const maxX = chart.width - paddingRight - 4;
-            if (x > maxX) {
-              x = maxX;
+            if (x + totalLabelWidth > maxX) {
+              x = Math.max(minX, maxX - totalLabelWidth);
             }
             y = center;
-          } else {
-            if (y < chartArea.top + 12) {
-              y = chartArea.top + 12;
-            }
           }
 
-          ctx.fillText(formatted, x, y);
+          let glyphX;
+          let valueX;
+
+          if (isHorizontal) {
+            glyphX = x;
+            valueX = x + glyphWidth + spacing;
+          } else {
+            glyphX = x - totalLabelWidth / 2;
+            valueX = glyphX + glyphWidth + spacing;
+          }
+
+          if (rankGlyph) {
+            ctx.font = glyphFont;
+            ctx.fillText(rankGlyph, glyphX, y);
+          }
+
+          ctx.font = valueFont;
+          ctx.fillText(formatted, valueX, y);
           ctx.restore();
         });
       },
@@ -1167,8 +1245,9 @@
     }
 
     function buildLineupOptions(max, metric, teams) {
-      const formatter = metric === 'value' ? formatNumber : formatPpg;
-      const axisMax = metric === 'value'
+      const isValueMetric = metric === 'value';
+      const formatter = isValueMetric ? formatValueCompact : formatPpg;
+      const axisMax = isValueMetric
         ? roundUpTo(max, 5000)
         : roundUpTo(max, 5);
       const isMobile = window.matchMedia('(max-width: 640px)').matches;
@@ -1268,7 +1347,7 @@
                 const slotKey = tooltipItems[0].dataset.slotKey;
                 const team = teams[teamIndex];
                 const players = team?.startersBySlot?.[slotKey]?.players || [];
-                const valueKey = metric === 'value' ? 'value' : 'ppg';
+                const valueKey = isValueMetric ? 'value' : 'ppg';
                 return players
                   .slice()
                   .sort((a, b) => (b[valueKey] || 0) - (a[valueKey] || 0))
@@ -1283,6 +1362,9 @@
             offset: isMobile ? 10 : 18,
             formatter: (value) => formatter(value),
             mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
+            rankFont: '600 15px "Product Sans", "Google Sans", sans-serif',
+            rankMobileFont: '600 13px "Product Sans", "Google Sans", sans-serif',
+            rankSpacing: isMobile ? 4 : 6,
           },
         },
       };
@@ -1404,7 +1486,7 @@
               grid: { color: 'rgba(234, 235, 240, 0.08)' },
               ticks: {
                 color: '#EAEBF0',
-                callback: (value) => formatNumber(value),
+                callback: (value) => formatValueCompact(value),
                 font: {
                   size: isMobile ? 10 : 12,
                   family: "'Product Sans', 'Google Sans', sans-serif",
@@ -1447,7 +1529,7 @@
                 },
                 label: (context) => {
                   const value = context.raw ?? 0;
-                  return `${context.dataset.label}: ${formatNumber(value)}`;
+                  return `${context.dataset.label}: ${formatValueCompact(value)}`;
                 },
                 footer: (tooltipItems) => {
                   if (!tooltipItems.length) return '';
@@ -1456,7 +1538,7 @@
                   const players = teams[teamIndex]?.allPlayers || [];
                   const list = players.filter((player) => player.pos === slotKey).slice(0, 3);
                   return list
-                    .map((player) => `${player.name}: ${formatNumber(player.ktc)}`)
+                    .map((player) => `${player.name}: ${formatValueCompact(player.ktc)}`)
                     .join('\n');
                 },
               },
@@ -1464,8 +1546,11 @@
             analyzerBarTotals: {
               enabled: true,
               offset: totalsPluginOffset,
-              formatter: (value) => formatNumber(value),
+              formatter: (value) => formatValueCompact(value),
               mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
+              rankFont: '600 15px "Product Sans", "Google Sans", sans-serif',
+              rankMobileFont: '600 13px "Product Sans", "Google Sans", sans-serif',
+              rankSpacing: isMobile ? 4 : 6,
             },
           },
         },
@@ -1682,6 +1767,19 @@
     function computeRank(list, predicate) {
       const index = list.findIndex(predicate);
       return index === -1 ? null : index + 1;
+    }
+
+    function formatValueCompact(value) {
+      if (!Number.isFinite(value)) return '0';
+      const abs = Math.abs(value);
+      if (abs >= 1000) {
+        const scaled = value / 1000;
+        const decimals = scaled >= 100 ? 0 : 1;
+        const fixed = scaled.toFixed(decimals);
+        const formattedNumber = Number(fixed).toLocaleString();
+        return `${formattedNumber}k`;
+      }
+      return Math.round(value).toLocaleString();
     }
 
     function formatNumber(value) {
