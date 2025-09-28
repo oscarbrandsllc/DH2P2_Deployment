@@ -1015,6 +1015,11 @@
         (team) => team.isUserTeam,
       );
 
+      const totalValueRank = computeRank(
+        [...teams].sort((a, b) => b.totalValue - a.totalValue),
+        (team) => team.isUserTeam,
+      );
+
       const fptsRank = computeRank(
         [...teams].sort((a, b) => b.totalFpts - a.totalFpts),
         (team) => team.isUserTeam,
@@ -1051,7 +1056,8 @@
         {
           label: 'TTL Team Value',
           value: formatNumber(userTeam.totalValue),
-          meta: 'KTC',
+          meta: totalValueRank ? `KTC • Rank ${totalValueRank}/${totalTeams}` : 'KTC',
+          accent: totalValueRank ? getRankColor(totalValueRank, totalTeams) : undefined,
         },
         {
           label: 'Starter Value',
@@ -1093,10 +1099,19 @@
       elements.summaryStats.classList.remove('hidden');
     }
 
+    function destroyChartInstance(chart) {
+      if (!chart) return;
+      if (typeof chart.$cleanupTooltip === 'function') {
+        chart.$cleanupTooltip();
+      }
+      delete chart.$cleanupTooltip;
+      chart.destroy();
+    }
+
     function renderLineupChart(teams) {
       state.lineupData = buildLineupDatasets(teams);
       if (state.charts.lineup) {
-        state.charts.lineup.destroy();
+        destroyChartInstance(state.charts.lineup);
       }
       const metricConfig = state.lineupData[state.currentLineupMetric];
       state.charts.lineup = createStackedBarChart(
@@ -1290,17 +1305,68 @@
       return [hexToRgba(hex, 0.8), hexToRgba(hex, 0.32)];
     }
 
+    function clearChartTooltip(chart) {
+      if (!chart) return;
+      if (typeof chart.setActiveElements === 'function') {
+        chart.setActiveElements([]);
+      }
+      if (chart.tooltip?.setActiveElements) {
+        chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      }
+    }
+
+    function attachTooltipDismissal(chart) {
+      if (!chart?.canvas) return;
+      const { canvas } = chart;
+
+      const clear = () => {
+        clearChartTooltip(chart);
+        if (typeof chart.update === 'function') {
+          chart.update('none');
+        }
+      };
+
+      const handleCanvasPointerDown = (event) => {
+        const elements = chart.getElementsAtEventForMode(
+          event,
+          'nearest',
+          { intersect: true },
+          true,
+        );
+        if (!elements.length) {
+          clear();
+        }
+      };
+
+      const handleDocumentPointerDown = (event) => {
+        if (canvas.contains(event.target)) return;
+        clear();
+      };
+
+      canvas.addEventListener('pointerdown', handleCanvasPointerDown);
+      document.addEventListener('pointerdown', handleDocumentPointerDown);
+
+      chart.$cleanupTooltip = () => {
+        canvas.removeEventListener('pointerdown', handleCanvasPointerDown);
+        document.removeEventListener('pointerdown', handleDocumentPointerDown);
+      };
+    }
+
     function createStackedBarChart(canvas, labels, datasets, options) {
-      return new Chart(canvas, {
+      const chart = new Chart(canvas, {
         type: 'bar',
         data: { labels, datasets },
         options,
       });
+
+      attachTooltipDismissal(chart);
+
+      return chart;
     }
 
     function renderOverallChart(teams) {
       if (state.charts.overall) {
-        state.charts.overall.destroy();
+        destroyChartInstance(state.charts.overall);
       }
 
       const labels = teams.map((team) => truncateLabel(team.teamName));
