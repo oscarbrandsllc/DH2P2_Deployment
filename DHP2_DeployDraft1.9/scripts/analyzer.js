@@ -164,6 +164,26 @@
       },
     };
 
+    const RANK_GLYPHS = [
+      '①',
+      '②',
+      '③',
+      '④',
+      '⑤',
+      '⑥',
+      '⑦',
+      '⑧',
+      '⑨',
+      '⑩',
+      '⑪',
+      '⑫',
+    ];
+
+    function getRankGlyph(rank) {
+      if (!Number.isInteger(rank) || rank <= 0) return '';
+      return RANK_GLYPHS[rank - 1] || `#${rank}`;
+    }
+
     const barTotalsPlugin = {
       id: 'analyzerBarTotals',
       afterDatasetsDraw(chart, args, options) {
@@ -207,6 +227,25 @@
         const formatter = options.formatter || ((val) => val.toFixed(0));
         const isMobileViewport = window.matchMedia('(max-width: 640px)').matches;
 
+        const rankEntries = totals
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => Number.isFinite(value));
+
+        const sortedRanks = [...rankEntries].sort((a, b) => b.value - a.value);
+        const rankLookup = new Array(labelCount).fill(null);
+        let lastValue = null;
+        let lastRank = 0;
+
+        sortedRanks.forEach((entry, position) => {
+          const { value, index } = entry;
+          if (!Number.isFinite(value)) return;
+          if (lastValue === null || value !== lastValue) {
+            lastRank = position + 1;
+            lastValue = value;
+          }
+          rankLookup[index] = lastRank;
+        });
+
         totals.forEach((total, index) => {
           if (!Number.isFinite(total) || total === 0) return;
           const element = positions[index];
@@ -214,6 +253,10 @@
 
           const formatted = formatter(total, index);
           if (!formatted) return;
+
+          const rank = rankLookup[index];
+          const rankGlyph = rank ? `${getRankGlyph(rank)} ` : '';
+          const labelText = `${rankGlyph}${formatted}`.trim();
 
           const center = isHorizontal ? element.y : element.x;
           const primaryPixel = primaryScale.getPixelForValue(total);
@@ -242,7 +285,7 @@
             }
           }
 
-          ctx.fillText(formatted, x, y);
+          ctx.fillText(labelText, x, y);
           ctx.restore();
         });
       },
