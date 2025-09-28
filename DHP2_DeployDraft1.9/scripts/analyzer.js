@@ -1178,10 +1178,27 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         interaction: { mode: 'nearest', intersect: false },
-        onClick: (evt, elements) => {
-          if (elements.length === 0) {
-            hideAllActiveTooltips();
+        onClick: (evt, elements, chart) => {
+          const tooltip = chart.tooltip;
+          if (!tooltip) return;
+
+          const activeElements = tooltip.getActiveElements();
+
+          if (activeElements.length > 0) {
+            const lastActiveElement = activeElements[0];
+            tooltip.setActiveElements([], { x: 0, y: 0 });
+
+            if (elements.length > 0) {
+              const newElement = elements[0];
+              if (lastActiveElement.datasetIndex !== newElement.datasetIndex || lastActiveElement.index !== newElement.index) {
+                tooltip.setActiveElements(elements, evt);
+              }
+            }
+          } else if (elements.length > 0) {
+            tooltip.setActiveElements(elements, evt);
           }
+
+          chart.update();
         },
         layout: {
           padding: {
@@ -1351,10 +1368,27 @@
           maintainAspectRatio: false,
           indexAxis: 'y',
           interaction: { mode: 'nearest', intersect: false },
-          onClick: (evt, elements) => {
-            if (elements.length === 0) {
-              hideAllActiveTooltips();
+          onClick: (evt, elements, chart) => {
+            const tooltip = chart.tooltip;
+            if (!tooltip) return;
+
+            const activeElements = tooltip.getActiveElements();
+
+            if (activeElements.length > 0) {
+              const lastActiveElement = activeElements[0];
+              tooltip.setActiveElements([], { x: 0, y: 0 });
+
+              if (elements.length > 0) {
+                const newElement = elements[0];
+                if (lastActiveElement.datasetIndex !== newElement.datasetIndex || lastActiveElement.index !== newElement.index) {
+                  tooltip.setActiveElements(elements, evt);
+                }
+              }
+            } else if (elements.length > 0) {
+              tooltip.setActiveElements(elements, evt);
             }
+
+            chart.update();
           },
           layout: {
             padding: {

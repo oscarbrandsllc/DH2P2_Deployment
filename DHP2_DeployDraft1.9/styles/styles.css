@@ -6467,8 +6467,7 @@ body[data-page="analyzer"] #leagueSelect {
     padding: 0.35rem 0.45rem;
   }
   body[data-page="analyzer"] .analyzer-panel {
-       padding: 1.25rem 0.5rem;
-
+    padding: 1.25rem 0.5rem;
   }
   body[data-page="analyzer"] .analyzer-chart {
     height: 320px;
