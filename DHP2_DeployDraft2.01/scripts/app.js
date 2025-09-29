@@ -193,7 +193,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         }
 
         // --- State ---
-        let state = { userId: null, leagues: [], players: {}, oneQbData: {}, sflxData: {}, currentLeagueId: null, isSuperflex: false, cache: {}, teamsToCompare: new Set(), isCompareMode: false, currentRosterView: 'positional', activePositions: new Set(), tradeBlock: {}, isTradeCollapsed: false, weeklyStats: {}, playerSeasonStats: {}, playerSeasonRanks: {}, playerWeeklyStats: {}, statsSheetsLoaded: false, seasonRankCache: null, isGameLogModalOpenFromComparison: false };
+        let state = { userId: null, leagues: [], players: {}, oneQbData: {}, sflxData: {}, currentLeagueId: null, isSuperflex: false, cache: {}, teamsToCompare: new Set(), isCompareMode: false, currentRosterView: 'positional', activePositions: new Set(), tradeBlock: {}, isTradeCollapsed: false, weeklyStats: {}, playerSeasonStats: {}, playerSeasonRanks: {}, playerWeeklyStats: {}, statsSheetsLoaded: false, seasonRankCache: null, isGameLogModalOpenFromComparison: false, liveWeeklyFantasyPoints: {}, liveWeekFetchMeta: {}, nflState: null };
         const assignedLeagueColors = new Map();
         let nextColorIndex = 0;
         const assignedRyColors = new Map();
@@ -835,10 +835,154 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         async function fetchSleeperPlayers() {
             try { state.players = await fetchWithCache(`${API_BASE}/players/nfl`); } catch (e) { console.error("Failed to fetch Sleeper players:", e); }
         }
-        
+
+        async function fetchNflState() {
+            if (state.nflState) return state.nflState;
+            try {
+                const nflState = await fetchWithCache('https://api.sleeper.app/v1/state/nfl');
+                state.nflState = nflState;
+                return nflState;
+            } catch (error) {
+                console.error('Failed to fetch NFL state from Sleeper.', error);
+                return null;
+            }
+        }
+
+        function determineCurrentWeekFromState(nflState, leagueInfo) {
+            if (!nflState && !leagueInfo) return null;
+            const candidates = [];
+            if (leagueInfo?.settings) {
+                const leg = Number(leagueInfo.settings.leg);
+                const lastScored = Number(leagueInfo.settings.last_scored_leg);
+                if (Number.isFinite(leg) && leg > 0) candidates.push(leg);
+                if (Number.isFinite(lastScored) && lastScored > 0) candidates.push(lastScored);
+                const declaredWeek = Number(leagueInfo.settings.week);
+                const currentWeek = Number(leagueInfo.settings.current_week);
+                if (Number.isFinite(declaredWeek) && declaredWeek > 0) candidates.push(declaredWeek);
+                if (Number.isFinite(currentWeek) && currentWeek > 0) candidates.push(currentWeek);
+            }
+            if (nflState) {
+                ['display_week', 'week', 'leg'].forEach(key => {
+                    const value = Number(nflState[key]);
+                    if (Number.isFinite(value) && value > 0) candidates.push(value);
+                });
+            }
+            if (!candidates.length) return null;
+            return Math.max(...candidates);
+        }
+
+        function resolveMissingStatWeeks(currentWeek) {
+            if (!Number.isFinite(currentWeek) || currentWeek <= 0) return [];
+            const missing = [];
+            const upperBound = Math.floor(currentWeek);
+            for (let week = 1; week <= upperBound; week += 1) {
+                if (!Object.prototype.hasOwnProperty.call(PLAYER_STATS_SHEETS.weeks, week)) {
+                    missing.push(week);
+                }
+            }
+            return missing;
+        }
+
+        function extractFantasyPointsFromEntry(entry) {
+            if (!entry || typeof entry !== 'object') return null;
+            const candidates = [
+                entry.pts_ppr,
+                entry.points_ppr,
+                entry.fpts,
+                entry.fantasy_points,
+                entry.stats?.pts_ppr,
+                entry.stats?.pts_full_ppr,
+                entry.stats?.fpts,
+                entry.total_points,
+            ];
+            for (const candidate of candidates) {
+                const numeric = Number(candidate);
+                if (Number.isFinite(numeric)) return numeric;
+            }
+            return null;
+        }
+
+        async function ensureLiveFantasyPoints(leagueInfo, { allowRefetch = false, force = false } = {}) {
+            if (!leagueInfo) return;
+            const nflState = await fetchNflState();
+            const currentWeek = determineCurrentWeekFromState(nflState, leagueInfo);
+            if (!Number.isFinite(currentWeek) || currentWeek <= 0) return;
+
+            const missingWeeks = resolveMissingStatWeeks(currentWeek);
+            if (!missingWeeks.length) return;
+
+            const season = leagueInfo.season || String(new Date().getFullYear());
+
+            await Promise.all(missingWeeks.map(async (week) => {
+                const meta = state.liveWeekFetchMeta[week];
+                if (meta?.season === season) {
+                    if (force) {
+                        // always fetch when force is true
+                    } else if (!allowRefetch) {
+                        return;
+                    } else if (meta.hasEntries === false) {
+                        const elapsed = Date.now() - (meta.fetchedAt || 0);
+                        if (elapsed < 60000) return;
+                    } else if (meta.hasEntries) {
+                        return;
+                    }
+                }
+                try {
+                    const url = `https://api.sleeper.app/v1/stats/nfl/regular/${season}/${week}?season_type=regular`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    const entries = Array.isArray(data)
+                        ? data
+                        : (data && typeof data === 'object')
+                            ? Object.values(data)
+                            : [];
+
+                    const weekMap = {};
+                    entries.forEach((entry) => {
+                        const playerId = entry?.player_id || entry?.playerId || entry?.player?.id || entry?.id;
+                        if (!playerId) return;
+                        const fpts = extractFantasyPointsFromEntry(entry);
+                        if (!Number.isFinite(fpts) || fpts === 0) return;
+                        weekMap[playerId] = { fpts, source: 'live' };
+                    });
+
+                    if (Object.keys(weekMap).length > 0) {
+                        state.liveWeeklyFantasyPoints[week] = weekMap;
+                    }
+                    state.liveWeekFetchMeta[week] = { season, fetchedAt: Date.now(), hasEntries: Object.keys(weekMap).length > 0 };
+                } catch (error) {
+                    console.error(`Failed to fetch live fantasy points for week ${week}.`, error);
+                }
+            }));
+        }
+
         async function fetchGameLogs(playerId) {
             if (!state.statsSheetsLoaded) {
                 await fetchPlayerStatsSheets();
+            }
+
+            const leagueInfo = state.leagues.find(l => l.league_id === state.currentLeagueId);
+            if (leagueInfo) {
+                const nflState = await fetchNflState();
+                const currentWeek = determineCurrentWeekFromState(nflState, leagueInfo);
+                const missingWeeks = resolveMissingStatWeeks(currentWeek);
+                let needsRefetch = false;
+                let forceRefetch = false;
+                missingWeeks.forEach(week => {
+                    const meta = state.liveWeekFetchMeta[week];
+                    const hasEntry = Boolean(state.liveWeeklyFantasyPoints?.[week]?.[playerId]);
+                    if (!meta) {
+                        needsRefetch = true;
+                    } else if (meta.hasEntries === false) {
+                        needsRefetch = true;
+                    }
+                    if (!hasEntry && meta && meta.hasEntries) {
+                        needsRefetch = true;
+                        forceRefetch = true;
+                    }
+                });
+                await ensureLiveFantasyPoints(leagueInfo, { allowRefetch: needsRefetch, force: forceRefetch });
             }
 
             const allWeeklyStats = [];
@@ -850,6 +994,16 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 if (statsForWeek) {
                     allWeeklyStats.push({ week, stats: statsForWeek });
                 }
+            });
+
+            const liveWeeks = state.liveWeeklyFantasyPoints || {};
+            Object.entries(liveWeeks).forEach(([week, playerMap]) => {
+                const numericWeek = Number(week);
+                if (Number.isNaN(numericWeek)) return;
+                if (Object.prototype.hasOwnProperty.call(PLAYER_STATS_SHEETS.weeks, numericWeek)) return;
+                const liveEntry = playerMap?.[playerId];
+                if (!liveEntry || !Number.isFinite(liveEntry.fpts)) return;
+                allWeeklyStats.push({ week: numericWeek, stats: { fpts: liveEntry.fpts }, source: 'live' });
             });
 
             return allWeeklyStats;
@@ -877,18 +1031,37 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             for (const week in state.weeklyStats) {
                 const weeklyData = state.weeklyStats[week];
                 for (const pId in weeklyData) {
-                    if (allPlayers[pId]) { // Make sure the player exists in our list
-                        allPlayers[pId].total_pts += calculateFantasyPoints(weeklyData[pId], scoringSettings);
-                        if(calculateFantasyPoints(weeklyData[pId], scoringSettings) > 0) {
-                            allPlayers[pId].games_played += 1;
-                        }
+                    if (!allPlayers[pId]) continue;
+                    const fantasyPoints = calculateFantasyPoints(weeklyData[pId], scoringSettings);
+                    allPlayers[pId].total_pts += fantasyPoints;
+                    if (fantasyPoints !== 0) {
+                        allPlayers[pId].games_played += 1;
                     }
                 }
             }
 
+            // Fold in live fantasy points for weeks not yet available in the sheets
+            if (state.liveWeeklyFantasyPoints) {
+                Object.entries(state.liveWeeklyFantasyPoints).forEach(([week, playerMap]) => {
+                    const numericWeek = Number(week);
+                    if (Number.isNaN(numericWeek)) return;
+                    if (Object.prototype.hasOwnProperty.call(PLAYER_STATS_SHEETS.weeks, numericWeek)) return;
+                    Object.entries(playerMap || {}).forEach(([pId, entry]) => {
+                        if (!allPlayers[pId]) return;
+                        const fpts = Number(entry?.fpts);
+                        if (!Number.isFinite(fpts)) return;
+                        allPlayers[pId].total_pts += fpts;
+                        if (fpts !== 0) {
+                            allPlayers[pId].games_played += 1;
+                        }
+                    });
+                });
+            }
+
             // Calculate PPG
             for (const pId in allPlayers) {
-                allPlayers[pId].ppg = allPlayers[pId].games_played > 0 ? allPlayers[pId].total_pts / allPlayers[pId].games_played : 0;
+                const player = allPlayers[pId];
+                player.ppg = player.games_played > 0 ? player.total_pts / player.games_played : 0;
             }
 
             if (!allPlayers[playerId]) {
@@ -1642,6 +1815,30 @@ const SEASON_META_HEADERS = {
             renderGameLogs(gameLogs, player, playerRanks);
         }
 
+        function getAdjustedGamesPlayed(playerId) {
+            const seasonStats = state.playerSeasonStats?.[playerId];
+            let gamesPlayed = 0;
+            if (seasonStats && seasonStats.games_played !== undefined && seasonStats.games_played !== null) {
+                const parsed = Number(seasonStats.games_played);
+                gamesPlayed = Number.isFinite(parsed) ? parsed : 0;
+            }
+
+            if (state.liveWeeklyFantasyPoints) {
+                Object.entries(state.liveWeeklyFantasyPoints).forEach(([week, playerMap]) => {
+                    const numericWeek = Number(week);
+                    if (Number.isNaN(numericWeek)) return;
+                    if (Object.prototype.hasOwnProperty.call(PLAYER_STATS_SHEETS.weeks, numericWeek)) return;
+                    const liveEntry = playerMap?.[playerId];
+                    if (!liveEntry) return;
+                    const fpts = Number(liveEntry.fpts);
+                    if (!Number.isFinite(fpts) || fpts === 0) return;
+                    gamesPlayed += 1;
+                });
+            }
+
+            return gamesPlayed;
+        }
+
         function renderGameLogs(gameLogs, player, playerRanks) {
             const league = state.leagues.find(l => l.league_id === state.currentLeagueId);
             if (!league) return;
@@ -1842,66 +2039,109 @@ const wrTeStatOrder = [
                 for (const key of orderedStatKeys) {
                     if (!statLabels[key]) continue;
 
-                    let value;
-                    if (NO_FALLBACK_KEYS.has(key)) {
-                        const raw = weekStats.stats[key];
-                        value = (typeof raw === 'number') ? raw : null;
-                    } else if (key === 'fpts') value = calculateFantasyPoints(weekStats.stats, scoringSettings);
-                    else if (key === 'ypc') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yd'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'yco_per_att') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yac'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'mtf_per_att') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['mtf'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'pass_imp_per_att') {
-                        const passImp = weekStats.stats['pass_imp'];
-                        const passAtt = weekStats.stats['pass_att'];
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else if (typeof passImp === 'number' && typeof passAtt === 'number' && passAtt > 0) value = (passImp / passAtt) * 100;
-                        else value = 0;
-                    }
-                    else if (key === 'ts_per_rr') {
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else {
-                            const routes = weekStats.stats['rr'] || 0;
-                            const targets = weekStats.stats['rec_tgt'] || 0;
-                            value = routes > 0 ? (targets / routes) * 100 : 0;
-                        }
-                    }
-                    else if (key === 'yprr') {
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else {
-                            const routes = weekStats.stats['rr'] || 0;
-                            const yards = weekStats.stats['rec_yd'] || 0;
-                            value = routes > 0 ? yards / routes : 0;
-                        }
-                    }
-                    else if (key === 'ypr') {
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else {
-                            const receptions = weekStats.stats['rec'] || 0;
-                            const yards = weekStats.stats['rec_yd'] || 0;
-                            value = receptions > 0 ? yards / receptions : 0;
-                        }
-                    }
-                    else if (key === 'first_down_rec_rate') {
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else {
-                            const rec_fd = weekStats.stats['rec_fd'] || 0;
-                            const rec = weekStats.stats['rec'] || 0;
-                            value = rec > 0 ? (rec_fd / rec) : 0;
-                        }
-                    }
-                    else if (key === 'imp_per_g') {
-                        if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
-                        else value = weekStats.stats['imp'] || 0;
-                    }
-                    else if (key === 'prs_pct' || key === 'snp_pct') value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
-                    else if (key === 'ttt') value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
-                    else value = weekStats.stats[key] || 0;
+                    let value = null;
+                    const stats = weekStats.stats || {};
 
-                    if (value > 0) hasData = true;
+                    if (NO_FALLBACK_KEYS.has(key)) {
+                        const raw = stats[key];
+                        value = (typeof raw === 'number') ? raw : null;
+                    } else if (key === 'fpts') {
+                        const computed = calculateFantasyPoints(stats, scoringSettings);
+                        value = Number.isFinite(computed) ? computed : null;
+                    } else if (key === 'ypc') {
+                        const carries = stats['rush_att'];
+                        const yards = stats['rush_yd'];
+                        if (typeof carries === 'number' && carries !== 0 && typeof yards === 'number') {
+                            value = yards / carries;
+                        }
+                    } else if (key === 'yco_per_att') {
+                        const carries = stats['rush_att'];
+                        const yac = stats['rush_yac'];
+                        if (typeof carries === 'number' && carries !== 0 && typeof yac === 'number') {
+                            value = yac / carries;
+                        }
+                    } else if (key === 'mtf_per_att') {
+                        const carries = stats['rush_att'];
+                        const mtf = stats['mtf'];
+                        if (typeof carries === 'number' && carries !== 0 && typeof mtf === 'number') {
+                            value = mtf / carries;
+                        }
+                    } else if (key === 'pass_imp_per_att') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else {
+                            const passImp = stats['pass_imp'];
+                            const passAtt = stats['pass_att'];
+                            if (typeof passImp === 'number' && typeof passAtt === 'number' && passAtt !== 0) {
+                                value = (passImp / passAtt) * 100;
+                            }
+                        }
+                    } else if (key === 'ts_per_rr') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else {
+                            const routes = stats['rr'];
+                            const targets = stats['rec_tgt'];
+                            if (typeof routes === 'number' && routes !== 0 && typeof targets === 'number') {
+                                value = (targets / routes) * 100;
+                            }
+                        }
+                    } else if (key === 'yprr') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else {
+                            const routes = stats['rr'];
+                            const yards = stats['rec_yd'];
+                            if (typeof routes === 'number' && routes !== 0 && typeof yards === 'number') {
+                                value = yards / routes;
+                            }
+                        }
+                    } else if (key === 'ypr') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else {
+                            const receptions = stats['rec'];
+                            const yards = stats['rec_yd'];
+                            if (typeof receptions === 'number' && receptions !== 0 && typeof yards === 'number') {
+                                value = yards / receptions;
+                            }
+                        }
+                    } else if (key === 'first_down_rec_rate') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else {
+                            const recFd = stats['rec_fd'];
+                            const receptions = stats['rec'];
+                            if (typeof recFd === 'number' && typeof receptions === 'number' && receptions !== 0) {
+                                value = recFd / receptions;
+                            }
+                        }
+                    } else if (key === 'imp_per_g') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        } else if (typeof stats['imp'] === 'number') {
+                            value = stats['imp'];
+                        }
+                    } else if (key === 'prs_pct' || key === 'snp_pct' || key === 'ttt') {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        }
+                    } else {
+                        if (typeof stats[key] === 'number') {
+                            value = stats[key];
+                        }
+                    }
+
+                    if (typeof value === 'number') {
+                        if (value !== 0) hasData = true;
+                    } else if (value !== null) {
+                        hasData = true;
+                    }
 
                     let displayValue;
-                    if (value === null || typeof value !== 'number') displayValue = 'N/A';
-                    else if (key === 'yco_per_att') displayValue = value.toFixed(2);
+                    if (value === null || typeof value !== 'number' || Number.isNaN(value)) {
+                        displayValue = 'N/A';
+                    } else if (key === 'yco_per_att') displayValue = value.toFixed(2);
                     else if (key === 'mtf_per_att' || key === 'ypc' || key === 'ttt' || key === 'ypr' || key === 'yprr' || key === 'first_down_rec_rate') displayValue = value.toFixed(2);
                     else if (key === 'pass_imp_per_att' || key === 'prs_pct' || key === 'snp_pct' || key === 'ts_per_rr') displayValue = formatPercentage(value);
                     else displayValue = value.toFixed(2).replace(/\.00$/, '');
@@ -1926,8 +2166,9 @@ const wrTeStatOrder = [
                 const footerRow = document.createElement('tr');
                 const totalTh = document.createElement('th');
                 totalTh.className = 'modal-table-footer-label';
-                const gamesPlayed = state.playerSeasonStats?.[player.id]?.games_played ?? '0';
-                totalTh.innerHTML = `<span class="season-label">2025</span><br><span class="gp-label">(GP: ${gamesPlayed})</span>`;
+                const adjustedGamesPlayed = getAdjustedGamesPlayed(player.id);
+                const gpDisplay = Number.isFinite(adjustedGamesPlayed) ? Math.round(adjustedGamesPlayed) : 0;
+                totalTh.innerHTML = `<span class="season-label">2025</span><br><span class="gp-label">(GP: ${gpDisplay})</span>`;
                 footerRow.appendChild(totalTh);
 
                 const seasonTotals = state.playerSeasonStats?.[player.id] || null;
@@ -2026,7 +2267,10 @@ const wrTeStatOrder = [
                         let impPerGame = seasonTotals && typeof seasonTotals.imp_per_g === 'number' ? seasonTotals.imp_per_g : null;
                         if (impPerGame === null) {
                             const totalImp = seasonTotals && typeof seasonTotals.imp === 'number' ? seasonTotals.imp : (aggregatedTotals['imp'] || 0);
-                            const games = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : gameLogsWithData.length;
+                            const seasonGames = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : null;
+                            const games = (Number.isFinite(adjustedGamesPlayed) && adjustedGamesPlayed > 0)
+                                ? adjustedGamesPlayed
+                                : (Number.isFinite(seasonGames) ? seasonGames : gameLogsWithData.length);
                             impPerGame = games > 0 ? totalImp / games : 0;
                         }
                         displayValue = Number(impPerGame).toFixed(2).replace(/\.00$/, '');
@@ -2483,6 +2727,7 @@ const wrTeStatOrder = [
                         const aggregatedTotals = {};
                         const snapPctValues = [];
                         const statValueCounts = {};
+                        const adjustedGamesForPlayer = getAdjustedGamesPlayed(player.id);
 
                         player.gameLogs.forEach(week => {
                             for (const key in week.stats) {
@@ -2596,7 +2841,10 @@ const wrTeStatOrder = [
                                         calculatedValue = seasonTotals.imp_per_g;
                                     } else {
                                         const totalImp = seasonTotals && typeof seasonTotals.imp === 'number' ? seasonTotals.imp : (aggregatedTotals['imp'] || 0);
-                                        const games = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : player.gameLogs.length;
+                                        const seasonGames = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : null;
+                                        const games = (Number.isFinite(adjustedGamesForPlayer) && adjustedGamesForPlayer > 0)
+                                            ? adjustedGamesForPlayer
+                                            : (Number.isFinite(seasonGames) ? seasonGames : player.gameLogs.length);
                                         calculatedValue = games > 0 ? totalImp / games : 0;
                                     }
                                 }
@@ -3402,7 +3650,12 @@ const wrTeStatOrder = [
             let totalPoints = 0;
             if (!stats || !scoringSettings) return 0;
 
+            if (typeof stats.fpts === 'number') {
+                totalPoints += stats.fpts;
+            }
+
             for (const statKey in stats) {
+                if (statKey === 'fpts') continue;
                 if (scoringSettings[statKey]) {
                     totalPoints += stats[statKey] * scoringSettings[statKey];
                 }
