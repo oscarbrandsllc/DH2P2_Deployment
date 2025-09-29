@@ -910,8 +910,11 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             }
 
             const entries = Object.values(playersById);
+            const MIN_GAMES_FOR_PPG_RANK = 2;
             entries.forEach(entry => {
                 entry.ppg = entry.gamesPlayed > 0 ? entry.totalPts / entry.gamesPlayed : 0;
+                entry.ppgOverallRank = null;
+                entry.ppgPosRank = null;
             });
 
             const totalSorted = entries.slice().sort((a, b) => b.totalPts - a.totalPts);
@@ -930,15 +933,20 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 group.slice().sort((a, b) => b.totalPts - a.totalPts).forEach((entry, index) => {
                     entry.posRank = index + 1;
                 });
-                group.slice().sort((a, b) => b.ppg - a.ppg).forEach((entry, index) => {
-                    entry.ppgPosRank = index + 1;
-                });
+                group
+                    .filter(entry => entry.gamesPlayed >= MIN_GAMES_FOR_PPG_RANK)
+                    .sort((a, b) => b.ppg - a.ppg)
+                    .forEach((entry, index) => {
+                        entry.ppgPosRank = index + 1;
+                    });
             });
 
-            const ppgSorted = entries.slice().sort((a, b) => b.ppg - a.ppg);
-            ppgSorted.forEach((entry, index) => {
-                entry.ppgOverallRank = index + 1;
-            });
+            entries
+                .filter(entry => entry.gamesPlayed >= MIN_GAMES_FOR_PPG_RANK)
+                .sort((a, b) => b.ppg - a.ppg)
+                .forEach((entry, index) => {
+                    entry.ppgOverallRank = index + 1;
+                });
 
             const cache = {};
             entries.forEach(entry => {
