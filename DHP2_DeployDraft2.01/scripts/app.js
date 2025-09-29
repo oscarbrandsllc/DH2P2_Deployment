@@ -193,7 +193,36 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         }
 
         // --- State ---
-        let state = { userId: null, leagues: [], players: {}, oneQbData: {}, sflxData: {}, currentLeagueId: null, isSuperflex: false, cache: {}, teamsToCompare: new Set(), isCompareMode: false, currentRosterView: 'positional', activePositions: new Set(), tradeBlock: {}, isTradeCollapsed: false, weeklyStats: {}, playerSeasonStats: {}, playerSeasonRanks: {}, playerWeeklyStats: {}, statsSheetsLoaded: false, seasonRankCache: null, isGameLogModalOpenFromComparison: false };
+        let state = {
+            userId: null,
+            leagues: [],
+            players: {},
+            oneQbData: {},
+            sflxData: {},
+            currentLeagueId: null,
+            isSuperflex: false,
+            cache: {},
+            teamsToCompare: new Set(),
+            isCompareMode: false,
+            currentRosterView: 'positional',
+            activePositions: new Set(),
+            tradeBlock: {},
+            isTradeCollapsed: false,
+            weeklyStats: {},
+            playerSeasonStats: {},
+            playerSeasonRanks: {},
+            playerWeeklyStats: {},
+            statsSheetsLoaded: false,
+            seasonRankCache: null,
+            isGameLogModalOpenFromComparison: false,
+            nflState: null,
+            nflStatePromise: null,
+            liveSeasonStats: {},
+            liveSeasonPromises: {},
+            liveWeeklyStats: {},
+            liveWeeklyPromises: {},
+            maxSheetWeek: 0
+        };
         const assignedLeagueColors = new Map();
         let nextColorIndex = 0;
         const assignedRyColors = new Map();
@@ -465,11 +494,29 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 const qbSlots = rosterPositions.filter(p => p === 'QB').length;
                 state.isSuperflex = (superflexSlots > 0) || (qbSlots > 1);
                 
+                const supplementalPromises = [];
+                if (leagueInfo?.season) {
+                    supplementalPromises.push(
+                        ensureLiveSeasonStats(leagueInfo.season).catch((err) => {
+                            console.warn('Failed to load live season stats', err);
+                        })
+                    );
+                }
+                supplementalPromises.push(
+                    ensureNflState().catch((err) => {
+                        console.warn('Failed to load NFL state', err);
+                    })
+                );
+
                 const [rosters, users, tradedPicks] = await Promise.all([
                     fetchWithCache(`${API_BASE}/league/${leagueId}/rosters`),
                     fetchWithCache(`${API_BASE}/league/${leagueId}/users`),
                     fetchWithCache(`${API_BASE}/league/${leagueId}/traded_picks`),
                 ]);
+
+                if (supplementalPromises.length > 0) {
+                    await Promise.allSettled(supplementalPromises);
+                }
                 
                 const teams = processRosterData(rosters, users, tradedPicks, leagueInfo);
                 
@@ -841,6 +888,30 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 await fetchPlayerStatsSheets();
             }
 
+            const league = state.leagues.find(l => l.league_id === state.currentLeagueId);
+            const season = league?.season ? String(league.season) : null;
+            let currentWeek = null;
+
+            if (season) {
+                try {
+                    await ensureLiveSeasonStats(season);
+                } catch (error) {
+                    console.warn('Unable to hydrate live season stats', error);
+                }
+            }
+
+            try {
+                const nflState = await ensureNflState();
+                if (nflState && nflState.week) {
+                    const parsedWeek = Number(nflState.week);
+                    if (Number.isFinite(parsedWeek)) {
+                        currentWeek = parsedWeek;
+                    }
+                }
+            } catch (error) {
+                console.warn('Unable to resolve NFL state', error);
+            }
+
             const allWeeklyStats = [];
             const weeklyStats = state.playerWeeklyStats || {};
             const weeks = Object.keys(weeklyStats).map(Number).sort((a, b) => a - b);
@@ -852,15 +923,152 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 }
             });
 
+            const maxSheetWeek = state.maxSheetWeek || 0;
+            if (season && currentWeek && currentWeek > maxSheetWeek) {
+                for (let week = maxSheetWeek + 1; week <= currentWeek; week += 1) {
+                    try {
+                        const liveWeekStats = await ensureLiveWeekStats(season, week);
+                        const playerLiveStats = liveWeekStats?.[playerId];
+                        if (playerLiveStats && typeof playerLiveStats.fpts === 'number') {
+                            allWeeklyStats.push({
+                                week,
+                                stats: {
+                                    fpts: playerLiveStats.fpts,
+                                    __isLiveOnly: true,
+                                    __fptsOverride: playerLiveStats.fpts,
+                                    __countsAsGame: playerLiveStats.countsAsGame === true
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Unable to hydrate live stats for week ${week}`, error);
+                    }
+                }
+            }
+
             return allWeeklyStats;
         }
 
+        function toNumberOrNull(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'number') {
+                return Number.isFinite(value) ? value : null;
+            }
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        async function ensureNflState() {
+            if (state.nflState) return state.nflState;
+            if (state.nflStatePromise) return state.nflStatePromise;
+
+            const url = `${API_BASE}/state/nfl`;
+            state.nflStatePromise = (async () => {
+                try {
+                    const data = await fetchWithCache(url);
+                    state.nflState = data || null;
+                    return state.nflState;
+                } finally {
+                    state.nflStatePromise = null;
+                }
+            })();
+
+            return state.nflStatePromise;
+        }
+
+        async function ensureLiveSeasonStats(season) {
+            if (!season) return {};
+            const seasonKey = String(season);
+            if (state.liveSeasonStats[seasonKey]) return state.liveSeasonStats[seasonKey];
+            if (state.liveSeasonPromises[seasonKey]) return state.liveSeasonPromises[seasonKey];
+
+            const url = `${API_BASE}/stats/nfl/${seasonKey}?season_type=regular`;
+            state.liveSeasonPromises[seasonKey] = (async () => {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Failed to load live season stats: ${response.status}`);
+                    const raw = await response.json();
+                    const normalized = {};
+                    if (raw && typeof raw === 'object') {
+                        Object.entries(raw).forEach(([playerId, stats]) => {
+                            if (!stats || typeof stats !== 'object') return;
+                            const totalPts = toNumberOrNull(stats.pts_ppr ?? stats.fpts_ppr ?? stats.fpts ?? stats.pts);
+                            const gamesPlayed = toNumberOrNull(stats.gp ?? stats.games_played ?? stats.games);
+                            let ppg = toNumberOrNull(stats.pts_ppr_per_game ?? stats.fpts_ppr_per_game ?? stats.ppg);
+                            if (ppg === null && totalPts !== null && gamesPlayed) {
+                                ppg = gamesPlayed > 0 ? totalPts / gamesPlayed : null;
+                            }
+
+                            if (totalPts !== null || gamesPlayed !== null || ppg !== null) {
+                                normalized[playerId] = {
+                                    total_pts: totalPts !== null ? totalPts : 0,
+                                    games_played: gamesPlayed !== null ? gamesPlayed : 0,
+                                    ppg: ppg !== null
+                                        ? ppg
+                                        : ((gamesPlayed && gamesPlayed > 0 && totalPts !== null) ? totalPts / gamesPlayed : 0)
+                                };
+                            }
+                        });
+                    }
+                    state.liveSeasonStats[seasonKey] = normalized;
+                    return normalized;
+                } finally {
+                    state.liveSeasonPromises[seasonKey] = null;
+                }
+            })();
+
+            return state.liveSeasonPromises[seasonKey];
+        }
+
+        async function ensureLiveWeekStats(season, week) {
+            if (!season) return {};
+            const weekNum = Number(week);
+            if (!Number.isFinite(weekNum) || weekNum <= 0) return {};
+            const seasonKey = String(season);
+
+            state.liveWeeklyStats[seasonKey] = state.liveWeeklyStats[seasonKey] || {};
+            state.liveWeeklyPromises[seasonKey] = state.liveWeeklyPromises[seasonKey] || {};
+
+            if (state.liveWeeklyStats[seasonKey][weekNum]) return state.liveWeeklyStats[seasonKey][weekNum];
+            if (state.liveWeeklyPromises[seasonKey][weekNum]) return state.liveWeeklyPromises[seasonKey][weekNum];
+
+            const url = `${API_BASE}/stats/nfl/${seasonKey}/${weekNum}?season_type=regular`;
+            state.liveWeeklyPromises[seasonKey][weekNum] = (async () => {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Failed to load live week stats: ${response.status}`);
+                    const raw = await response.json();
+                    const normalized = {};
+                    if (raw && typeof raw === 'object') {
+                        Object.entries(raw).forEach(([playerId, stats]) => {
+                            if (!stats || typeof stats !== 'object') return;
+                            const fpts = toNumberOrNull(stats.pts_ppr ?? stats.fpts_ppr ?? stats.fpts ?? stats.pts);
+                            if (fpts === null) return;
+                            normalized[playerId] = {
+                                fpts,
+                                countsAsGame: fpts !== 0
+                            };
+                        });
+                    }
+                    state.liveWeeklyStats[seasonKey][weekNum] = normalized;
+                    return normalized;
+                } finally {
+                    state.liveWeeklyPromises[seasonKey][weekNum] = null;
+                }
+            })();
+
+            return state.liveWeeklyPromises[seasonKey][weekNum];
+        }
+
         function calculatePlayerStatsAndRanks(playerId) {
-            
+
 
             const league = state.leagues.find(l => l.league_id === state.currentLeagueId);
             if (!league) return null;
             const scoringSettings = league.scoring_settings;
+            const seasonKey = league?.season ? String(league.season) : null;
+            const liveSeasonData = seasonKey ? state.liveSeasonStats?.[seasonKey] || null : null;
+            const liveWeeklyStats = seasonKey ? state.liveWeeklyStats?.[seasonKey] || {} : {};
 
             const allPlayers = {};
 
@@ -886,9 +1094,42 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 }
             }
 
+            if (liveWeeklyStats && typeof liveWeeklyStats === 'object') {
+                for (const [week, weekData] of Object.entries(liveWeeklyStats)) {
+                    if (state.weeklyStats && state.weeklyStats[week]) continue;
+                    if (!weekData || typeof weekData !== 'object') continue;
+                    for (const [pId, live] of Object.entries(weekData)) {
+                        if (!allPlayers[pId] || !live) continue;
+                        const liveFpts = toNumberOrNull(live.fpts);
+                        if (liveFpts !== null) {
+                            allPlayers[pId].total_pts += liveFpts;
+                            if (live.countsAsGame) {
+                                allPlayers[pId].games_played += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (liveSeasonData) {
+                for (const [pId, live] of Object.entries(liveSeasonData)) {
+                    if (!allPlayers[pId] || !live) continue;
+                    if (typeof live.total_pts === 'number' && Number.isFinite(live.total_pts)) {
+                        allPlayers[pId].total_pts = live.total_pts;
+                    }
+                    if (typeof live.games_played === 'number' && Number.isFinite(live.games_played)) {
+                        allPlayers[pId].games_played = live.games_played;
+                    }
+                }
+            }
+
             // Calculate PPG
             for (const pId in allPlayers) {
-                allPlayers[pId].ppg = allPlayers[pId].games_played > 0 ? allPlayers[pId].total_pts / allPlayers[pId].games_played : 0;
+                if (liveSeasonData && liveSeasonData[pId] && typeof liveSeasonData[pId].ppg === 'number' && Number.isFinite(liveSeasonData[pId].ppg)) {
+                    allPlayers[pId].ppg = liveSeasonData[pId].ppg;
+                } else {
+                    allPlayers[pId].ppg = allPlayers[pId].games_played > 0 ? allPlayers[pId].total_pts / allPlayers[pId].games_played : 0;
+                }
             }
 
             if (!allPlayers[playerId]) {
@@ -1031,6 +1272,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 });
                 state.playerWeeklyStats = weeklyStats;
                 state.weeklyStats = weeklyStats;
+                const weekNumbers = Object.keys(weeklyStats).map(Number).filter(Number.isFinite);
+                state.maxSheetWeek = weekNumbers.length ? Math.max(...weekNumbers) : 0;
                 state.statsSheetsLoaded = true;
             } catch (error) {
                 console.error('Failed to fetch player stats from sheet.', error);
@@ -1039,6 +1282,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 state.playerWeeklyStats = {};
                 state.seasonRankCache = null;
                 state.statsSheetsLoaded = false;
+                state.maxSheetWeek = 0;
             }
         }
 
@@ -1832,6 +2076,7 @@ const wrTeStatOrder = [
 
             const gameLogsWithData = [];
             gameLogs.sort((a, b) => parseInt(a.week) - parseInt(b.week)).forEach(weekStats => {
+                const isLiveOnlyWeek = weekStats?.stats?.__isLiveOnly === true;
                 let hasData = false;
                 const row = document.createElement('tr');
 
@@ -1843,61 +2088,65 @@ const wrTeStatOrder = [
                     if (!statLabels[key]) continue;
 
                     let value;
-                    if (NO_FALLBACK_KEYS.has(key)) {
+                    if (isLiveOnlyWeek && key !== 'fpts') {
+                        value = null;
+                    } else if (NO_FALLBACK_KEYS.has(key)) {
                         const raw = weekStats.stats[key];
                         value = (typeof raw === 'number') ? raw : null;
-                    } else if (key === 'fpts') value = calculateFantasyPoints(weekStats.stats, scoringSettings);
-                    else if (key === 'ypc') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yd'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'yco_per_att') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yac'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'mtf_per_att') value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['mtf'] || 0) / weekStats.stats['rush_att']) : 0;
-                    else if (key === 'pass_imp_per_att') {
+                    } else if (key === 'fpts') {
+                        value = calculateFantasyPoints(weekStats.stats, scoringSettings);
+                    } else if (key === 'ypc') {
+                        value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yd'] || 0) / weekStats.stats['rush_att']) : 0;
+                    } else if (key === 'yco_per_att') {
+                        value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['rush_yac'] || 0) / weekStats.stats['rush_att']) : 0;
+                    } else if (key === 'mtf_per_att') {
+                        value = (weekStats.stats['rush_att'] || 0) > 0 ? ((weekStats.stats['mtf'] || 0) / weekStats.stats['rush_att']) : 0;
+                    } else if (key === 'pass_imp_per_att') {
                         const passImp = weekStats.stats['pass_imp'];
                         const passAtt = weekStats.stats['pass_att'];
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else if (typeof passImp === 'number' && typeof passAtt === 'number' && passAtt > 0) value = (passImp / passAtt) * 100;
                         else value = 0;
-                    }
-                    else if (key === 'ts_per_rr') {
+                    } else if (key === 'ts_per_rr') {
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else {
                             const routes = weekStats.stats['rr'] || 0;
                             const targets = weekStats.stats['rec_tgt'] || 0;
                             value = routes > 0 ? (targets / routes) * 100 : 0;
                         }
-                    }
-                    else if (key === 'yprr') {
+                    } else if (key === 'yprr') {
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else {
                             const routes = weekStats.stats['rr'] || 0;
                             const yards = weekStats.stats['rec_yd'] || 0;
                             value = routes > 0 ? yards / routes : 0;
                         }
-                    }
-                    else if (key === 'ypr') {
+                    } else if (key === 'ypr') {
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else {
                             const receptions = weekStats.stats['rec'] || 0;
                             const yards = weekStats.stats['rec_yd'] || 0;
                             value = receptions > 0 ? yards / receptions : 0;
                         }
-                    }
-                    else if (key === 'first_down_rec_rate') {
+                    } else if (key === 'first_down_rec_rate') {
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else {
                             const rec_fd = weekStats.stats['rec_fd'] || 0;
                             const rec = weekStats.stats['rec'] || 0;
                             value = rec > 0 ? (rec_fd / rec) : 0;
                         }
-                    }
-                    else if (key === 'imp_per_g') {
+                    } else if (key === 'imp_per_g') {
                         if (typeof weekStats.stats[key] === 'number') value = weekStats.stats[key];
                         else value = weekStats.stats['imp'] || 0;
+                    } else if (key === 'prs_pct' || key === 'snp_pct') {
+                        value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
+                    } else if (key === 'ttt') {
+                        value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
+                    } else {
+                        value = weekStats.stats[key] || 0;
                     }
-                    else if (key === 'prs_pct' || key === 'snp_pct') value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
-                    else if (key === 'ttt') value = typeof weekStats.stats[key] === 'number' ? weekStats.stats[key] : 0;
-                    else value = weekStats.stats[key] || 0;
 
-                    if (value > 0) hasData = true;
+                    if (typeof value === 'number' && value !== 0) hasData = true;
 
                     let displayValue;
                     if (value === null || typeof value !== 'number') displayValue = 'N/A';
@@ -1911,7 +2160,7 @@ const wrTeStatOrder = [
                     row.appendChild(td);
                 }
 
-                if (hasData) {
+                if (hasData || isLiveOnlyWeek) {
                     tbody.appendChild(row);
                     gameLogsWithData.push(weekStats);
                 }
@@ -1926,8 +2175,11 @@ const wrTeStatOrder = [
                 const footerRow = document.createElement('tr');
                 const totalTh = document.createElement('th');
                 totalTh.className = 'modal-table-footer-label';
-                const gamesPlayed = state.playerSeasonStats?.[player.id]?.games_played ?? '0';
-                totalTh.innerHTML = `<span class="season-label">2025</span><br><span class="gp-label">(GP: ${gamesPlayed})</span>`;
+                const baseGamesPlayed = toNumberOrNull(state.playerSeasonStats?.[player.id]?.games_played) || 0;
+                const liveGameCount = gameLogsWithData.filter(week => week?.stats?.__isLiveOnly && week?.stats?.__countsAsGame).length;
+                const seasonLabel = league.season || '';
+                const totalGamesPlayed = baseGamesPlayed + liveGameCount;
+                totalTh.innerHTML = `<span class="season-label">${seasonLabel}</span><br><span class="gp-label">(GP: ${totalGamesPlayed})</span>`;
                 footerRow.appendChild(totalTh);
 
                 const seasonTotals = state.playerSeasonStats?.[player.id] || null;
@@ -1936,7 +2188,9 @@ const wrTeStatOrder = [
                 const statValueCounts = {};
 
                 gameLogsWithData.forEach(weekStats => {
+                    if (weekStats?.stats?.__isLiveOnly) return;
                     for (const key in weekStats.stats) {
+                        if (key.startsWith('__')) continue;
                         const statValue = parseFloat(weekStats.stats[key]);
                         if (Number.isNaN(statValue)) continue;
                         if (key === 'snp_pct') {
@@ -2026,7 +2280,9 @@ const wrTeStatOrder = [
                         let impPerGame = seasonTotals && typeof seasonTotals.imp_per_g === 'number' ? seasonTotals.imp_per_g : null;
                         if (impPerGame === null) {
                             const totalImp = seasonTotals && typeof seasonTotals.imp === 'number' ? seasonTotals.imp : (aggregatedTotals['imp'] || 0);
-                            const games = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : gameLogsWithData.length;
+                            const games = seasonTotals && typeof seasonTotals.games_played === 'number'
+                                ? seasonTotals.games_played
+                                : gameLogsWithData.filter(week => !week?.stats?.__isLiveOnly).length;
                             impPerGame = games > 0 ? totalImp / games : 0;
                         }
                         displayValue = Number(impPerGame).toFixed(2).replace(/\.00$/, '');
@@ -2485,7 +2741,9 @@ const wrTeStatOrder = [
                         const statValueCounts = {};
 
                         player.gameLogs.forEach(week => {
+                            if (week?.stats?.__isLiveOnly) return;
                             for (const key in week.stats) {
+                                if (key.startsWith('__')) continue;
                                 const numericValue = parseFloat(week.stats[key]);
                                 if (Number.isNaN(numericValue)) continue;
                                 if (key === 'snp_pct') {
@@ -2596,7 +2854,9 @@ const wrTeStatOrder = [
                                         calculatedValue = seasonTotals.imp_per_g;
                                     } else {
                                         const totalImp = seasonTotals && typeof seasonTotals.imp === 'number' ? seasonTotals.imp : (aggregatedTotals['imp'] || 0);
-                                        const games = seasonTotals && typeof seasonTotals.games_played === 'number' ? seasonTotals.games_played : player.gameLogs.length;
+                                        const games = seasonTotals && typeof seasonTotals.games_played === 'number'
+                                            ? seasonTotals.games_played
+                                            : player.gameLogs.filter(week => !week?.stats?.__isLiveOnly).length;
                                         calculatedValue = games > 0 ? totalImp / games : 0;
                                     }
                                 }
@@ -3401,6 +3661,8 @@ const wrTeStatOrder = [
         function calculateFantasyPoints(stats, scoringSettings) {
             let totalPoints = 0;
             if (!stats || !scoringSettings) return 0;
+            const override = toNumberOrNull(stats.__fptsOverride);
+            if (override !== null) return override;
 
             for (const statKey in stats) {
                 if (scoringSettings[statKey]) {
