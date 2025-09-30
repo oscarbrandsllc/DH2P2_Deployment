@@ -36,6 +36,33 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const analyzerButtonContainer = analyzerButtonSlot?.querySelector('.analyzer-button-container') || null;
         const researchButtonContainer = researchButtonSlot?.querySelector('.research-button-container') || null;
 
+        const observedHeaderSentinels = new Set();
+        const headerStickyObserver = (typeof window !== 'undefined' && 'IntersectionObserver' in window)
+            ? new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    const header = entry.target.nextElementSibling;
+                    if (!header || !header.classList?.contains('team-header-item')) return;
+                    if (entry.isIntersecting) {
+                        header.classList.remove('is-stuck');
+                    } else {
+                        header.classList.add('is-stuck');
+                    }
+                });
+            }, { threshold: [0, 1], rootMargin: '-1px 0px 0px 0px' })
+            : null;
+
+        function resetHeaderStickinessObserver() {
+            if (!headerStickyObserver) return;
+            observedHeaderSentinels.forEach((sentinel) => headerStickyObserver.unobserve(sentinel));
+            observedHeaderSentinels.clear();
+        }
+
+        function observeHeaderStickiness(sentinel) {
+            if (!headerStickyObserver || !sentinel) return;
+            headerStickyObserver.observe(sentinel);
+            observedHeaderSentinels.add(sentinel);
+        }
+
         const gameLogsModal = document.getElementById('game-logs-modal');
         const modalCloseBtn = document.querySelector('.modal-close-btn');
         const modalInfoBtn = document.querySelector('.modal-info-btn');
@@ -1632,7 +1659,21 @@ const SEASON_META_HEADERS = {
             const teams = rosters.map(roster => {
                 const owner = userMap[roster.owner_id];
                 const allPlayers = roster.players || [];
-                
+                const settings = roster.settings || {};
+                const parseRecordValue = (value) => {
+                    if (typeof value === 'number') return value;
+                    const parsed = Number(value);
+                    return Number.isFinite(parsed) ? parsed : null;
+                };
+
+                const wins = parseRecordValue(settings.wins);
+                const losses = parseRecordValue(settings.losses);
+                const ties = parseRecordValue(settings.ties);
+                const hasRecord = Number.isFinite(wins) && Number.isFinite(losses);
+                const record = hasRecord
+                    ? `${wins}-${losses}${Number.isFinite(ties) && ties > 0 ? `-${ties}` : ''}`
+                    : null;
+
                 const starterIds = roster.starters || [];
                 const starters = starterIds.map((playerId, index) => {
                     const slot = rosterPositions[index] || 'FLEX';
@@ -1653,6 +1694,7 @@ const SEASON_META_HEADERS = {
                 return {
                     isUserTeam,
                     teamName: owner?.display_name || `Team ${roster.roster_id}`,
+                    record,
                     starters,
                     bench: bench.map(p => getPlayerData(p, 'BN')).sort((a, b) => (b.ktc || 0) - (a.ktc || 0)),
                     taxi,
@@ -2959,6 +3001,7 @@ const wrTeStatOrder = [
         function renderAllTeamData(teams) {
             rosterGrid.innerHTML = '';
             rosterGrid.style.justifyContent = ''; // Reset style
+            resetHeaderStickinessObserver();
 
             let teamsToRender = teams;
             if (state.isCompareMode) {
@@ -2970,6 +3013,9 @@ const wrTeStatOrder = [
                 const columnWrapper = document.createElement('div');
                 columnWrapper.className = 'roster-column';
                 columnWrapper.dataset.teamName = team.teamName;
+
+                const sentinel = document.createElement('div');
+                sentinel.className = 'team-header-sentinel';
 
                 const header = document.createElement('div');
                 header.className = 'team-header-item';
@@ -2984,17 +3030,25 @@ const wrTeStatOrder = [
                 const teamNameSpan = document.createElement('span');
                 teamNameSpan.className = 'team-name';
                 teamNameSpan.textContent = team.teamName;
-                header.title = team.teamName;
+                header.title = team.record ? `${team.teamName} (${team.record})` : team.teamName;
 
 
                 header.appendChild(checkbox);
                 header.appendChild(teamNameSpan);
+                if (team.record) {
+                    const recordSpan = document.createElement('span');
+                    recordSpan.className = 'team-record';
+                    recordSpan.textContent = `(${team.record})`;
+                    header.appendChild(recordSpan);
+                }
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
+                columnWrapper.appendChild(sentinel);
                 columnWrapper.appendChild(header);
                 columnWrapper.appendChild(card);
                 rosterGrid.appendChild(columnWrapper);
+                observeHeaderStickiness(sentinel);
             });
 
             if (compareSearchInput && compareSearchInput.value) {
