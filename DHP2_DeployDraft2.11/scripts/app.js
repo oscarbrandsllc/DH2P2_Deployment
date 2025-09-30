@@ -1624,6 +1624,30 @@ const SEASON_META_HEADERS = {
             return num;
         }
 
+        function formatTeamRecord(settings) {
+            if (!settings || typeof settings !== 'object') {
+                return '0-0';
+            }
+
+            const parseValue = (value) => {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    return value;
+                }
+                if (typeof value === 'string') {
+                    const parsed = Number(value);
+                    return Number.isFinite(parsed) ? parsed : 0;
+                }
+                return 0;
+            };
+
+            const wins = parseValue(settings.wins);
+            const losses = parseValue(settings.losses);
+            const ties = parseValue(settings.ties);
+
+            const baseRecord = `${wins}-${losses}`;
+            return ties > 0 ? `${baseRecord}-${ties}` : baseRecord;
+        }
+
         function processRosterData(rosters, users, tradedPicks, leagueInfo) {
             const userMap = users.reduce((acc, user) => ({ ...acc, [user.user_id]: user }), {});
             const rosterPositions = leagueInfo.roster_positions;
@@ -1653,6 +1677,7 @@ const SEASON_META_HEADERS = {
                 return {
                     isUserTeam,
                     teamName: owner?.display_name || `Team ${roster.roster_id}`,
+                    recordDisplay: formatTeamRecord(roster.settings || {}),
                     starters,
                     bench: bench.map(p => getPlayerData(p, 'BN')).sort((a, b) => (b.ktc || 0) - (a.ktc || 0)),
                     taxi,
@@ -2956,6 +2981,67 @@ const wrTeStatOrder = [
             leagueSelect.disabled = false;
         }
 
+        let teamHeaderScrollHandler = null;
+        let teamHeaderResizeHandler = null;
+        let teamHeaderRafId = null;
+
+        function cleanupTeamHeaderSticky() {
+            if (teamHeaderScrollHandler) {
+                window.removeEventListener('scroll', teamHeaderScrollHandler);
+                teamHeaderScrollHandler = null;
+            }
+            if (teamHeaderResizeHandler) {
+                window.removeEventListener('resize', teamHeaderResizeHandler);
+                teamHeaderResizeHandler = null;
+            }
+            if (teamHeaderRafId !== null) {
+                cancelAnimationFrame(teamHeaderRafId);
+                teamHeaderRafId = null;
+            }
+        }
+
+        function initializeTeamHeaderSticky() {
+            const headers = rosterGrid.querySelectorAll('.team-header-item');
+            if (!headers.length) {
+                cleanupTeamHeaderSticky();
+                return;
+            }
+
+            cleanupTeamHeaderSticky();
+
+            const updateOffset = () => {
+                const headerContainer = document.getElementById('header-container');
+                const headerHeight = headerContainer ? headerContainer.offsetHeight : 0;
+                const offset = headerHeight + 8; // breathing room below the global header
+                document.documentElement.style.setProperty('--team-header-sticky-offset', `${offset}px`);
+            };
+
+            updateOffset();
+            teamHeaderResizeHandler = () => updateOffset();
+            window.addEventListener('resize', teamHeaderResizeHandler);
+
+            const evaluate = () => {
+                teamHeaderRafId = null;
+                headers.forEach((header) => {
+                    const topOffset = parseFloat(getComputedStyle(header).top) || 0;
+                    const { top } = header.getBoundingClientRect();
+                    if (top <= topOffset + 0.5) {
+                        header.classList.add('is-stuck');
+                    } else {
+                        header.classList.remove('is-stuck');
+                    }
+                });
+            };
+
+            teamHeaderScrollHandler = () => {
+                if (teamHeaderRafId !== null) return;
+                teamHeaderRafId = requestAnimationFrame(evaluate);
+            };
+
+            window.addEventListener('scroll', teamHeaderScrollHandler, { passive: true });
+            evaluate();
+        }
+
         function renderAllTeamData(teams) {
             rosterGrid.innerHTML = '';
             rosterGrid.style.justifyContent = ''; // Reset style
@@ -2984,11 +3070,23 @@ const wrTeStatOrder = [
                 const teamNameSpan = document.createElement('span');
                 teamNameSpan.className = 'team-name';
                 teamNameSpan.textContent = team.teamName;
-                header.title = team.teamName;
 
+                const nameStack = document.createElement('span');
+                nameStack.className = 'team-name-stack';
+                nameStack.appendChild(teamNameSpan);
+
+                if (team.recordDisplay) {
+                    const teamRecordSpan = document.createElement('span');
+                    teamRecordSpan.className = 'team-record';
+                    teamRecordSpan.textContent = `(${team.recordDisplay})`;
+                    nameStack.appendChild(teamRecordSpan);
+                    header.title = `${team.teamName} (${team.recordDisplay})`;
+                } else {
+                    header.title = team.teamName;
+                }
 
                 header.appendChild(checkbox);
-                header.appendChild(teamNameSpan);
+                header.appendChild(nameStack);
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
@@ -3000,6 +3098,8 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+
+            initializeTeamHeaderSticky();
         }
 
         function createDepthChartTeamCard(team) {
