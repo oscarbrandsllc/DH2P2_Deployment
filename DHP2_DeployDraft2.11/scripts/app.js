@@ -27,6 +27,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const positionalFiltersContainer = document.getElementById('positional-filters');
         const clearFiltersButton = document.getElementById('clearFiltersButton');
         const tradeSimulator = document.getElementById('tradeSimulator');
+        const headerContainer = document.getElementById('header-container');
         const mainContent = document.getElementById('content');
         const pageType = document.body.dataset.page || 'welcome';
         const researchButton = document.getElementById('researchButton');
@@ -52,6 +53,60 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
         if (compareButton) {
             compareButton.innerHTML = COMPARE_BUTTON_PREVIEW_HTML;
+        }
+
+        let teamHeaderOffset = 0;
+
+        function updateTeamHeaderOffset() {
+            if (!headerContainer) {
+                teamHeaderOffset = 0;
+                document.documentElement.style.setProperty('--team-header-offset', '0px');
+                return;
+            }
+            const headerRect = headerContainer.getBoundingClientRect();
+            let marginBottom = 0;
+            try {
+                marginBottom = parseFloat(window.getComputedStyle(headerContainer).marginBottom) || 0;
+            } catch (err) {
+                marginBottom = 0;
+            }
+            teamHeaderOffset = Math.max(0, headerRect.bottom + marginBottom);
+            document.documentElement.style.setProperty('--team-header-offset', `${teamHeaderOffset}px`);
+        }
+
+        const supportsSmoothScroll = 'scrollBehavior' in document.documentElement.style;
+
+        function scrollRosterPageToTop(smooth = true) {
+            if (pageType !== 'rosters') return;
+            if (typeof window.scrollTo === 'function') {
+                if (smooth && supportsSmoothScroll) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    window.scrollTo(0, 0);
+                }
+            } else {
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
+            updateTeamHeaderOffset();
+        }
+
+        if (pageType === 'rosters') {
+            updateTeamHeaderOffset();
+
+            if (headerContainer && 'ResizeObserver' in window) {
+                const headerResizeObserver = new ResizeObserver(() => {
+                    updateTeamHeaderOffset();
+                });
+                headerResizeObserver.observe(headerContainer);
+            }
+
+            window.addEventListener('resize', () => {
+                updateTeamHeaderOffset();
+            });
+            window.addEventListener('orientationchange', () => {
+                updateTeamHeaderOffset();
+            });
         }
 
         // --- Menu Button ---
@@ -395,6 +450,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('rosters');
                 contextualControls.classList.remove('hidden');
+                updateTeamHeaderOffset();
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
                 setRosterView('positional'); // Set default view
@@ -433,6 +489,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('ownership');
                 contextualControls.classList.add('hidden');
+                updateTeamHeaderOffset();
                 rosterView.classList.add('hidden');
                 playerListView.classList.remove('hidden');
 
@@ -535,6 +592,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
                         updateHeaderPreviewState();
+                        scrollRosterPageToTop();
                     }
                 }
                 updateCompareButtonState();
@@ -553,11 +611,12 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             rosterView.classList.toggle('is-trade-mode', state.isCompareMode);
             rosterGrid.classList.toggle('is-preview-mode', state.isCompareMode);
             updateCompareButtonState();
-            renderAllTeamData(state.currentTeams); 
+            renderAllTeamData(state.currentTeams);
             if (!state.isCompareMode) {
                 clearTrade();
             } else {
                 renderTradeBlock();
+                scrollRosterPageToTop();
             }
             updateHeaderPreviewState();
         }
@@ -3000,6 +3059,8 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+
+            updateTeamHeaderOffset();
         }
 
         function createDepthChartTeamCard(team) {
