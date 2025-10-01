@@ -27,6 +27,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const positionalFiltersContainer = document.getElementById('positional-filters');
         const clearFiltersButton = document.getElementById('clearFiltersButton');
         const tradeSimulator = document.getElementById('tradeSimulator');
+        const headerContainer = document.getElementById('header-container');
+        const rosterScroller = document.getElementById('rosterScroller');
         const mainContent = document.getElementById('content');
         const pageType = document.body.dataset.page || 'welcome';
         const researchButton = document.getElementById('researchButton');
@@ -52,6 +54,180 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
         if (compareButton) {
             compareButton.innerHTML = COMPARE_BUTTON_PREVIEW_HTML;
+        }
+
+        const teamHeaderFloatManager = (() => {
+            if (pageType !== 'rosters' || !rosterGrid) {
+                return {
+                    refresh: () => {},
+                    updateOffset: () => {},
+                };
+            }
+
+            let columns = [];
+            let pending = false;
+            let headerOffset = 0;
+            let isBound = false;
+            let lastViewportWidth = window.innerWidth;
+
+            function computeHeaderOffset() {
+                if (!headerContainer) {
+                    return 0;
+                }
+                const rect = headerContainer.getBoundingClientRect();
+                let marginBottom = 0;
+                try {
+                    marginBottom = parseFloat(window.getComputedStyle(headerContainer).marginBottom) || 0;
+                } catch (err) {
+                    marginBottom = 0;
+                }
+                return Math.max(0, rect.bottom + marginBottom);
+            }
+
+            function captureColumns() {
+                columns = [];
+                const rosterColumns = rosterGrid.querySelectorAll('.roster-column');
+                rosterColumns.forEach(column => {
+                    const header = column.querySelector('.team-header-item');
+                    if (!header) {
+                        return;
+                    }
+
+                    header.style.transform = 'translate3d(0, 0, 0)';
+
+                    const columnRect = column.getBoundingClientRect();
+                    const headerRect = header.getBoundingClientRect();
+                    const columnTop = columnRect.top + window.scrollY;
+                    const columnBottom = columnTop + columnRect.height;
+                    const headerTop = headerRect.top + window.scrollY;
+                    const headerHeight = headerRect.height;
+
+                    columns.push({
+                        header,
+                        baseTop: headerTop,
+                        columnBottom,
+                        headerHeight,
+                        lastShift: 0,
+                    });
+
+                    header.style.willChange = 'transform';
+                });
+            }
+
+            function applyTransforms() {
+                pending = false;
+                if (!columns.length) {
+                    return;
+                }
+
+                const scrollTop = window.scrollY;
+                const targetTop = scrollTop + headerOffset;
+
+                columns = columns.filter(entry => document.body.contains(entry.header));
+
+                columns.forEach(entry => {
+                    const availableTravel = (entry.columnBottom - entry.headerHeight) - entry.baseTop;
+                    if (availableTravel <= 0) {
+                        if (entry.lastShift !== 0) {
+                            entry.header.style.transform = 'translate3d(0, 0, 0)';
+                            entry.lastShift = 0;
+                        }
+                        return;
+                    }
+
+                    const maxTop = entry.columnBottom - entry.headerHeight;
+                    const desiredTop = Math.min(maxTop, Math.max(entry.baseTop, targetTop));
+                    const shift = desiredTop - entry.baseTop;
+
+                    if (Math.abs(shift - entry.lastShift) > 0.1) {
+                        const roundedShift = Math.round(shift * 1000) / 1000;
+                        entry.header.style.transform = `translate3d(0, ${roundedShift}px, 0)`;
+                        entry.lastShift = roundedShift;
+                    }
+                });
+            }
+
+            function schedule() {
+                if (pending) {
+                    return;
+                }
+                pending = true;
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(applyTransforms);
+                } else {
+                    setTimeout(applyTransforms, 16);
+                }
+            }
+
+            function handleScroll() {
+                if (!columns.length) {
+                    return;
+                }
+                schedule();
+            }
+
+            function handleResize() {
+                const widthChanged = Math.abs(window.innerWidth - lastViewportWidth) > 1;
+                lastViewportWidth = window.innerWidth;
+                headerOffset = computeHeaderOffset();
+                if (widthChanged) {
+                    refresh(true);
+                } else {
+                    schedule();
+                }
+            }
+
+            function bindEvents() {
+                if (isBound) {
+                    return;
+                }
+                isBound = true;
+                window.addEventListener('scroll', handleScroll, { passive: true });
+                window.addEventListener('resize', handleResize);
+                window.addEventListener('orientationchange', handleResize);
+                rosterScroller?.addEventListener('scroll', handleScroll, { passive: true });
+            }
+
+            function refresh(remeasure = true) {
+                bindEvents();
+                headerOffset = computeHeaderOffset();
+                if (remeasure) {
+                    captureColumns();
+                }
+                schedule();
+            }
+
+            return {
+                refresh,
+                updateOffset: () => {
+                    headerOffset = computeHeaderOffset();
+                    schedule();
+                },
+            };
+        })();
+
+        const supportsSmoothScroll = 'scrollBehavior' in document.documentElement.style;
+
+        function scrollRosterPageToTop(smooth = true) {
+            if (pageType !== 'rosters') return;
+            if (typeof window.scrollTo === 'function') {
+                if (smooth && supportsSmoothScroll) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    window.scrollTo(0, 0);
+                }
+            } else {
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
+            teamHeaderFloatManager.refresh(false);
+        }
+
+        if (pageType === 'rosters' && headerContainer && 'ResizeObserver' in window) {
+            const headerResizeObserver = new ResizeObserver(() => {
+                teamHeaderFloatManager.refresh(true);
+            });
+            headerResizeObserver.observe(headerContainer);
         }
 
         // --- Menu Button ---
@@ -395,6 +571,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('rosters');
                 contextualControls.classList.remove('hidden');
+                teamHeaderFloatManager.updateOffset();
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
                 setRosterView('positional'); // Set default view
@@ -433,6 +610,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('ownership');
                 contextualControls.classList.add('hidden');
+                teamHeaderFloatManager.updateOffset();
                 rosterView.classList.add('hidden');
                 playerListView.classList.remove('hidden');
 
@@ -535,6 +713,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
                         updateHeaderPreviewState();
+                        scrollRosterPageToTop();
                     }
                 }
                 updateCompareButtonState();
@@ -553,11 +732,12 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             rosterView.classList.toggle('is-trade-mode', state.isCompareMode);
             rosterGrid.classList.toggle('is-preview-mode', state.isCompareMode);
             updateCompareButtonState();
-            renderAllTeamData(state.currentTeams); 
+            renderAllTeamData(state.currentTeams);
             if (!state.isCompareMode) {
                 clearTrade();
             } else {
                 renderTradeBlock();
+                scrollRosterPageToTop();
             }
             updateHeaderPreviewState();
         }
@@ -685,6 +865,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
                 column.classList.toggle('compare-search-hidden', Boolean(query) && !hasMatch);
             });
+
+            teamHeaderFloatManager.refresh(true);
         }
 
         let searchDebounce;
@@ -3000,6 +3182,8 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+
+            teamHeaderFloatManager.refresh(true);
         }
 
         function createDepthChartTeamCard(team) {
