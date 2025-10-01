@@ -27,6 +27,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const positionalFiltersContainer = document.getElementById('positional-filters');
         const clearFiltersButton = document.getElementById('clearFiltersButton');
         const tradeSimulator = document.getElementById('tradeSimulator');
+        const headerContainer = document.getElementById('header-container');
         const mainContent = document.getElementById('content');
         const pageType = document.body.dataset.page || 'welcome';
         const researchButton = document.getElementById('researchButton');
@@ -52,6 +53,102 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
         if (compareButton) {
             compareButton.innerHTML = COMPARE_BUTTON_PREVIEW_HTML;
+        }
+
+        function updateTeamHeaderOffset() {
+            if (!headerContainer) return;
+            const headerRect = headerContainer.getBoundingClientRect();
+            let marginBottom = 0;
+            try {
+                marginBottom = parseFloat(window.getComputedStyle(headerContainer).marginBottom) || 0;
+            } catch (err) {
+                marginBottom = 0;
+            }
+            const offset = Math.max(0, headerRect.bottom + marginBottom);
+            document.documentElement.style.setProperty('--team-header-offset', `${offset}px`);
+            scheduleStickyTeamHeadersUpdate();
+        }
+
+        function scheduleTeamHeaderOffsetUpdate() {
+            if (pageType !== 'rosters') return;
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(updateTeamHeaderOffset);
+            } else {
+                setTimeout(updateTeamHeaderOffset, 0);
+            }
+        }
+
+        let stickyHeadersAnimationFrame = null;
+
+        function updateStickyTeamHeaders() {
+            stickyHeadersAnimationFrame = null;
+            if (pageType !== 'rosters' || !rosterGrid) return;
+
+            let headerOffset = 0;
+            try {
+                headerOffset = parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue('--team-header-offset')) || 0;
+            } catch (err) {
+                headerOffset = 0;
+            }
+
+            const columns = rosterGrid.querySelectorAll('.roster-column');
+            columns.forEach(column => {
+                const header = column.querySelector('.team-header-item');
+                if (!header) return;
+
+                const headerHeight = header.offsetHeight || header.getBoundingClientRect().height || 0;
+                const columnRect = column.getBoundingClientRect();
+                const columnTop = columnRect.top;
+                const columnBottom = columnRect.bottom;
+                const columnHeight = columnRect.height;
+                let translate = 0;
+
+                if (columnTop < headerOffset) {
+                    const maxTranslate = Math.max(0, columnHeight - headerHeight);
+                    if (columnBottom - headerHeight <= headerOffset) {
+                        translate = maxTranslate;
+                    } else {
+                        translate = Math.min(headerOffset - columnTop, maxTranslate);
+                    }
+                }
+
+                header.style.setProperty('--team-header-translate', `${translate}px`);
+            });
+        }
+
+        function scheduleStickyTeamHeadersUpdate() {
+            if (pageType !== 'rosters') return;
+            if (typeof requestAnimationFrame === 'function') {
+                if (stickyHeadersAnimationFrame !== null) return;
+                stickyHeadersAnimationFrame = requestAnimationFrame(updateStickyTeamHeaders);
+            } else {
+                setTimeout(updateStickyTeamHeaders, 0);
+            }
+        }
+
+        if (pageType === 'rosters') {
+            scheduleTeamHeaderOffsetUpdate();
+            scheduleStickyTeamHeadersUpdate();
+
+            if (headerContainer && 'ResizeObserver' in window) {
+                const headerResizeObserver = new ResizeObserver(() => {
+                    scheduleTeamHeaderOffsetUpdate();
+                    scheduleStickyTeamHeadersUpdate();
+                });
+                headerResizeObserver.observe(headerContainer);
+            }
+
+            window.addEventListener('resize', () => {
+                scheduleTeamHeaderOffsetUpdate();
+                scheduleStickyTeamHeadersUpdate();
+            });
+            window.addEventListener('orientationchange', () => {
+                scheduleTeamHeaderOffsetUpdate();
+                scheduleStickyTeamHeadersUpdate();
+            });
+            window.addEventListener('scroll', scheduleStickyTeamHeadersUpdate, { passive: true });
+            document.addEventListener('scroll', scheduleStickyTeamHeadersUpdate, { passive: true });
+            document.body?.addEventListener('scroll', scheduleStickyTeamHeadersUpdate, { passive: true });
         }
 
         // --- Menu Button ---
@@ -395,6 +492,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('rosters');
                 contextualControls.classList.remove('hidden');
+                scheduleTeamHeaderOffsetUpdate();
+                scheduleStickyTeamHeadersUpdate();
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
                 setRosterView('positional'); // Set default view
@@ -433,6 +532,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('ownership');
                 contextualControls.classList.add('hidden');
+                scheduleTeamHeaderOffsetUpdate();
+                scheduleStickyTeamHeadersUpdate();
                 rosterView.classList.add('hidden');
                 playerListView.classList.remove('hidden');
 
@@ -3000,6 +3101,9 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+
+            scheduleTeamHeaderOffsetUpdate();
+            scheduleStickyTeamHeadersUpdate();
         }
 
         function createDepthChartTeamCard(team) {
