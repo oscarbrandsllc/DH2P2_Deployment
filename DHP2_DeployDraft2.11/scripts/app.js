@@ -16,6 +16,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const playerListView = document.getElementById('playerListView');
         const rosterContainer = document.getElementById('rosterContainer');
         const rosterGrid = document.getElementById('rosterGrid');
+        const teamHeaderBar = document.getElementById('teamHeaderBar');
         const compareButton = document.getElementById('compareButton');
         const compareSearchToggle  = document.getElementById('compareSearchToggle');
         const compareSearchPopover = document.getElementById('compareSearchPopover');
@@ -194,6 +195,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
         // --- State ---
         let state = { userId: null, leagues: [], players: {}, oneQbData: {}, sflxData: {}, currentLeagueId: null, isSuperflex: false, cache: {}, teamsToCompare: new Set(), isCompareMode: false, currentRosterView: 'positional', activePositions: new Set(), tradeBlock: {}, isTradeCollapsed: false, weeklyStats: {}, playerSeasonStats: {}, playerSeasonRanks: {}, playerWeeklyStats: {}, statsSheetsLoaded: false, seasonRankCache: null, isGameLogModalOpenFromComparison: false, liveWeeklyStats: {}, liveStatsLoaded: false, currentNflSeason: null, currentNflWeek: null, calculatedRankCache: null };
+        let teamHeaderObserver = null;
+        let teamHeaderSentinelMap = new WeakMap();
         const assignedLeagueColors = new Map();
         let nextColorIndex = 0;
         const assignedRyColors = new Map();
@@ -275,6 +278,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 if (e && e.target && e.target.blur) e.target.blur();
             });
             rosterGrid?.addEventListener('click', handleTeamSelect);
+            teamHeaderBar?.addEventListener('click', handleTeamSelect);
             mainContent?.addEventListener('click', handleAssetClickForTrade);
 
             tradeSimulator.addEventListener('click', (e) => {
@@ -658,6 +662,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
             const query = (q || '').trim().toLowerCase();
             const rosterColumns = rosterGrid.querySelectorAll('.roster-column');
+            const headerItems = teamHeaderBar ? Array.from(teamHeaderBar.querySelectorAll('.team-header-item')) : [];
 
             rosterColumns.forEach(column => {
                 const playerRows = column.querySelectorAll('.player-row');
@@ -684,6 +689,14 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 });
 
                 column.classList.toggle('compare-search-hidden', Boolean(query) && !hasMatch);
+
+                if (headerItems.length) {
+                    const teamName = column.dataset.teamName;
+                    const header = headerItems.find(item => item.dataset.teamName === teamName);
+                    if (header) {
+                        header.classList.toggle('compare-search-hidden', Boolean(query) && !hasMatch);
+                    }
+                }
             });
         }
 
@@ -1632,7 +1645,7 @@ const SEASON_META_HEADERS = {
             const teams = rosters.map(roster => {
                 const owner = userMap[roster.owner_id];
                 const allPlayers = roster.players || [];
-                
+
                 const starterIds = roster.starters || [];
                 const starters = starterIds.map((playerId, index) => {
                     const slot = rosterPositions[index] || 'FLEX';
@@ -1646,13 +1659,15 @@ const SEASON_META_HEADERS = {
                 const bench = allPlayers.filter(pId => pId && !starterIds.includes(pId) && !(roster.taxi || []).includes(pId));
                 const draftPicks = getOwnedPicks(roster.roster_id, tradedPicks, leagueInfo);
                
-               
-               const isUserTeam = roster.owner_id === state.userId || 
-               (roster.co_owners?.includes(state.userId) ?? false);
+
+                const isUserTeam = roster.owner_id === state.userId ||
+                    (roster.co_owners?.includes(state.userId) ?? false);
+                const record = getTeamRecord(roster);
 
                 return {
                     isUserTeam,
                     teamName: owner?.display_name || `Team ${roster.roster_id}`,
+                    record,
                     starters,
                     bench: bench.map(p => getPlayerData(p, 'BN')).sort((a, b) => (b.ktc || 0) - (a.ktc || 0)),
                     taxi,
@@ -1669,7 +1684,32 @@ const SEASON_META_HEADERS = {
                 return a.teamName.localeCompare(b.teamName);
             });
         }
-        
+
+        function getTeamRecord(roster) {
+            if (!roster) return null;
+            const settings = roster.settings || {};
+            const parseRecordValue = (value) => {
+                if (value === undefined || value === null) return null;
+                const numericValue = Number(value);
+                return Number.isFinite(numericValue) ? numericValue : null;
+            };
+
+            const wins = parseRecordValue(settings.wins);
+            const losses = parseRecordValue(settings.losses);
+            const ties = parseRecordValue(settings.ties);
+
+            if (wins === null || losses === null) {
+                return null;
+            }
+
+            const recordParts = [`${wins}`, `${losses}`];
+            if (ties !== null && ties > 0) {
+                recordParts.push(`${ties}`);
+            }
+
+            return recordParts.join('-');
+        }
+
         function getOwnedPicks(rosterId, tradedPicks, leagueInfo) {
             const defaultRounds = leagueInfo.settings.draft_rounds || 5;
             const leagueSeason = parseInt(leagueInfo.season);
@@ -2959,11 +2999,19 @@ const wrTeStatOrder = [
         function renderAllTeamData(teams) {
             rosterGrid.innerHTML = '';
             rosterGrid.style.justifyContent = ''; // Reset style
+            if (teamHeaderBar) {
+                teamHeaderBar.innerHTML = '';
+            }
 
             let teamsToRender = teams;
             if (state.isCompareMode) {
                 teamsToRender = teams.filter(team => state.teamsToCompare.has(team.teamName));
                 rosterGrid.style.justifyContent = 'center';
+                if (teamHeaderBar) {
+                    teamHeaderBar.style.justifyContent = 'center';
+                }
+            } else if (teamHeaderBar) {
+                teamHeaderBar.style.justifyContent = '';
             }
 
             teamsToRender.forEach(team => {
@@ -2973,6 +3021,11 @@ const wrTeStatOrder = [
 
                 const header = document.createElement('div');
                 header.className = 'team-header-item';
+                header.dataset.teamName = team.teamName;
+
+                const sentinel = document.createElement('div');
+                sentinel.className = 'team-header-sentinel';
+                header.appendChild(sentinel);
 
                 const checkbox = document.createElement('div');
                 checkbox.className = 'team-compare-checkbox';
@@ -2984,22 +3037,95 @@ const wrTeStatOrder = [
                 const teamNameSpan = document.createElement('span');
                 teamNameSpan.className = 'team-name';
                 teamNameSpan.textContent = team.teamName;
-                header.title = team.teamName;
+                header.title = team.record ? `${team.teamName} (${team.record})` : team.teamName;
 
+                let recordSpan = null;
+                if (team.record) {
+                    recordSpan = document.createElement('span');
+                    recordSpan.className = 'team-record';
+                    recordSpan.textContent = `(${team.record})`;
+                }
 
                 header.appendChild(checkbox);
                 header.appendChild(teamNameSpan);
+                if (recordSpan) {
+                    header.appendChild(recordSpan);
+                }
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
-                columnWrapper.appendChild(header);
                 columnWrapper.appendChild(card);
+                if (state.teamsToCompare.has(team.teamName)) {
+                    columnWrapper.classList.add('compare-selected');
+                }
+
                 rosterGrid.appendChild(columnWrapper);
+
+                if (teamHeaderBar) {
+                    teamHeaderBar.appendChild(header);
+                } else {
+                    columnWrapper.insertBefore(header, columnWrapper.firstChild);
+                }
             });
+
+            refreshTeamHeaderObserver();
 
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+        }
+
+        function refreshTeamHeaderObserver() {
+            if (pageType !== 'rosters') return;
+            updateTeamHeaderOffset();
+
+            if (teamHeaderObserver) {
+                teamHeaderObserver.disconnect();
+            }
+
+            const headerContainer = teamHeaderBar || rosterGrid;
+            const headers = headerContainer?.querySelectorAll('.team-header-item') || [];
+            if (!headers.length || typeof IntersectionObserver === 'undefined') {
+                headers.forEach(header => header.classList.remove('is-stuck'));
+                return;
+            }
+
+            teamHeaderSentinelMap = new WeakMap();
+            teamHeaderObserver = new IntersectionObserver(handleTeamHeaderIntersection, { threshold: [0], rootMargin: '0px 0px 0px 0px' });
+
+            headers.forEach(header => {
+                const sentinel = header.querySelector('.team-header-sentinel');
+                if (!sentinel) return;
+                teamHeaderSentinelMap.set(sentinel, header);
+                header.classList.remove('is-stuck');
+                teamHeaderObserver.observe(sentinel);
+            });
+        }
+
+        function handleTeamHeaderIntersection(entries) {
+            entries.forEach(entry => {
+                const header = teamHeaderSentinelMap.get(entry.target);
+                if (!header) return;
+                if (entry.isIntersecting) {
+                    header.classList.remove('is-stuck');
+                } else {
+                    header.classList.add('is-stuck');
+                }
+            });
+        }
+
+        function updateTeamHeaderOffset() {
+            if (pageType !== 'rosters') return;
+            const headerContainer = document.getElementById('header-container');
+            const baseOffset = 8;
+            if (!headerContainer) {
+                document.documentElement.style.setProperty('--team-header-sticky-offset', `${baseOffset}px`);
+                return;
+            }
+
+            const rect = headerContainer.getBoundingClientRect();
+            const offset = Math.ceil(rect.height) + baseOffset;
+            document.documentElement.style.setProperty('--team-header-sticky-offset', `${offset}px`);
         }
 
         function createDepthChartTeamCard(team) {
@@ -3971,6 +4097,11 @@ const wrTeStatOrder = [
             const data = await response.json();
             state.cache[url] = data;
             return data;
+        }
+
+        if (pageType === 'rosters') {
+            window.addEventListener('resize', refreshTeamHeaderObserver);
+            window.addEventListener('load', updateTeamHeaderOffset);
         }
     
 
