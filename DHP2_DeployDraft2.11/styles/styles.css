@@ -55,7 +55,7 @@
         color: var(--color-text-primary);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        overflow-x: hidden;
+        overflow-x: auto;
         position: relative;
       }
 
@@ -817,7 +817,6 @@
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
         #rosterContainer { 
             width: 100%; 
-            overflow-x: auto; 
             padding: 1px;
         }
         #rosterGrid { 
@@ -866,6 +865,8 @@
       -webkit-backdrop-filter: blur(4px) saturate(110%);
       backdrop-filter: blur(4px) saturate(110%);
       box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
+      position: sticky;
+      z-index: 1;
 }
         .team-header-item:hover {
             box-shadow: 0 0 5px #7300ff;
