@@ -37,6 +37,9 @@
         --panel-border-radius: 12px;
         --card-border-radius: 8px;
         --glow-strength: 0.6; /* FIXED: give it a value so parsing continues */
+
+        /* · · Dynamic layout vars · · */
+        --team-header-offset: 0px;
     
         /* · · Orb 3 (shared) — using lengths so gradient center = orb center · · */
         --orb3-left: 330px;
@@ -815,10 +818,16 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
-        #rosterContainer { 
-            width: 100%; 
-            overflow-x: auto; 
+        #rosterContainer {
+            width: 100%;
             padding: 1px;
+            overflow: visible;
+        }
+
+        #rosterScroller {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
         }
         #rosterGrid { 
             display: flex; 
@@ -840,6 +849,7 @@
             gap: 0.3rem;
             border: 1px solid transparent;       /* new base border */
             border-radius: 8px;                   /* match header */
+            --team-header-translate: 0px;
         }
 
 /* ⬇︎  ENTIRE COLUMN GLOW  ⬇︎ */
@@ -858,7 +868,7 @@
       text-align: center;
       padding: 0.4rem 0.5rem;
       cursor: pointer;
-    
+
       /* · · Glass look to match filter groups · · */
       background: linear-gradient(to bottom, rgba(0,0,0,0.01), rgba(0,0,0,0.1));
       border: 1px solid var(--color-panel-border);
@@ -866,6 +876,11 @@
       -webkit-backdrop-filter: blur(4px) saturate(110%);
       backdrop-filter: blur(4px) saturate(110%);
       box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
+
+      position: relative;
+      transform: translate3d(0, var(--team-header-translate, 0px), 0);
+      will-change: transform;
+      z-index: 3;
 }
         .team-header-item:hover {
             box-shadow: 0 0 5px #7300ff;
@@ -874,10 +889,12 @@
 		.team-header-item:has(.team-compare-checkbox.selected) {
           border: 1px solid #6300ffaa;
 		}
-        .team-card { 
-            display: flex; 
-            flex-direction: column; 
+        .team-card {
+            display: flex;
+            flex-direction: column;
             gap: 0.25rem;
+            transform: translate3d(0, var(--team-header-translate, 0px), 0);
+            will-change: transform;
         }
 
         .roster-section h3 {
