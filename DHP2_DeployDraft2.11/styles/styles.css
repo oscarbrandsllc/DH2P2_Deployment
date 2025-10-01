@@ -37,6 +37,10 @@
         --panel-border-radius: 12px;
         --card-border-radius: 8px;
         --glow-strength: 0.6; /* FIXED: give it a value so parsing continues */
+
+        /* · · Dynamic layout vars · · */
+        --team-header-offset: 0px;
+        --team-header-translate: 0px;
     
         /* · · Orb 3 (shared) — using lengths so gradient center = orb center · · */
         --orb3-left: 330px;
@@ -815,10 +819,16 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
-        #rosterContainer { 
-            width: 100%; 
-            overflow-x: auto; 
+        #rosterContainer {
+            width: 100%;
             padding: 1px;
+            overflow: visible;
+        }
+
+        #rosterScroller {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
         }
         #rosterGrid { 
             display: flex; 
@@ -866,6 +876,11 @@
       -webkit-backdrop-filter: blur(4px) saturate(110%);
       backdrop-filter: blur(4px) saturate(110%);
       box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
+
+      position: relative;
+      z-index: 3;
+      transform: translateY(var(--team-header-translate, 0px));
+      will-change: transform;
 }
         .team-header-item:hover {
             box-shadow: 0 0 5px #7300ff;
