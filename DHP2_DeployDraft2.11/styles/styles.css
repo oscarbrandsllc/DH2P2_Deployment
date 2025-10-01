@@ -852,7 +852,7 @@
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 500;
       color: #d0d1ee;
       text-align: center;
@@ -2678,10 +2678,19 @@ border: 1px solid rgb(169 178 227 / 9%);
 }
 
 .team-header-item .team-name {
+    flex: 1 1 auto;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90px;
+    min-width: 0;
+    text-align: center;
+}
+
+.team-header-item .team-record {
+    font-size: 0.6rem;
+    color: #9ea5d8;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 #analyzeLeagueButton {
