@@ -850,15 +850,15 @@
        .team-header-item {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      font-size: 0.75rem;
+      justify-content: flex-start;
+      gap: 0.25rem;
+      font-size: 0.7rem;
       font-weight: 500;
       color: #d0d1ee;
       text-align: center;
-      padding: 0.4rem 0.5rem;
+      padding: 0.32rem 0.45rem;
       cursor: pointer;
-    
+
       /* · · Glass look to match filter groups · · */
       background: linear-gradient(to bottom, rgba(0,0,0,0.01), rgba(0,0,0,0.1));
       border: 1px solid var(--color-panel-border);
@@ -2678,10 +2678,21 @@ border: 1px solid rgb(169 178 227 / 9%);
 }
 
 .team-header-item .team-name {
+    flex: 1 1 auto;
+    max-width: calc(100% - 2.4rem);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90px;
+    min-width: 0;
+    text-align: left;
+}
+
+.team-header-item .team-record {
+    font-size: 0.58rem;
+    color: #9ea5d8;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 0.1rem;
 }
 
 #analyzeLeagueButton {
