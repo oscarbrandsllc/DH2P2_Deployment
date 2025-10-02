@@ -3000,6 +3000,7 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+            adjustStickyHeaders();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3850,6 +3851,17 @@ const wrTeStatOrder = [
         function ordinalSuffix(i){ const j=i%10, k=i%100; if(j===1&&k!==11) return i+'st'; if(j===2&&k!==12) return i+'nd'; if(j===3&&k!==13) return i+'rd'; return i+'th'; }
 
         // --- Utility Functions ---
+        function adjustStickyHeaders() {
+            const headerContainer = document.getElementById('header-container');
+            if (!headerContainer) return;
+            const headerHeight = headerContainer.offsetHeight;
+            const teamHeaders = document.querySelectorAll('.team-header-item');
+            teamHeaders.forEach(header => {
+                header.style.top = `${headerHeight}px`;
+            });
+        }
+        window.addEventListener('resize', adjustStickyHeaders);
+
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
             tooltip.className = 'custom-tooltip';
