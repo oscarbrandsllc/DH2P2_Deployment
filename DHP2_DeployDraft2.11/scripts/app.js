@@ -3001,6 +3001,7 @@ const wrTeStatOrder = [
                 filterTeamsByQuery(compareSearchInput.value);
             }
             adjustStickyHeaders();
+            syncRosterHeaderPosition();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3861,6 +3862,90 @@ const wrTeStatOrder = [
             });
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        const rosterHeaderSync = (() => {
+            const state = {
+                pending: false,
+                lastOffset: null,
+                headerContainer: null,
+                headerContent: null,
+            };
+
+            const ensureHeaderNodes = () => {
+                if (!state.headerContainer || !document.body.contains(state.headerContainer)) {
+                    state.headerContainer = document.getElementById('header-container');
+                    state.headerContent = state.headerContainer?.querySelector('.app-header') || state.headerContainer;
+                }
+            };
+
+            const getHorizontalScroll = () => {
+                const docEl = document.scrollingElement || document.documentElement;
+                return window.scrollX
+                    || docEl?.scrollLeft
+                    || document.body?.scrollLeft
+                    || 0;
+            };
+
+            const applyTransform = () => {
+                state.pending = false;
+                ensureHeaderNodes();
+
+                const isRosterPage = document.body?.dataset?.page === 'rosters';
+                const headerContent = state.headerContent;
+
+                if (!isRosterPage || !headerContent) {
+                    if (headerContent?.style?.transform) {
+                        headerContent.style.transform = '';
+                    }
+                    state.lastOffset = 0;
+                    return;
+                }
+
+                const scrollLeft = Math.round(getHorizontalScroll());
+
+                if (scrollLeft === state.lastOffset) {
+                    return;
+                }
+
+                state.lastOffset = scrollLeft;
+
+                if (!scrollLeft) {
+                    headerContent.style.transform = '';
+                } else {
+                    headerContent.style.transform = `translate3d(${scrollLeft}px, 0, 0)`;
+                }
+            };
+
+            const scheduleUpdate = () => {
+                if (state.pending) return;
+                state.pending = true;
+                window.requestAnimationFrame(applyTransform);
+            };
+
+            const handleScroll = () => {
+                if (document.body?.dataset?.page !== 'rosters') return;
+                scheduleUpdate();
+            };
+
+            window.addEventListener('scroll', handleScroll, { passive: true });
+
+            const attachBodyListener = () => {
+                document.body?.addEventListener('scroll', handleScroll, { passive: true });
+            };
+
+            if (document.body) {
+                attachBodyListener();
+            } else {
+                window.addEventListener('DOMContentLoaded', attachBodyListener, { once: true });
+            }
+
+            window.addEventListener('resize', scheduleUpdate);
+            scheduleUpdate();
+
+            return {
+                refresh: scheduleUpdate,
+            };
+        })();
 
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
