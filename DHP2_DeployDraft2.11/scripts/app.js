@@ -397,6 +397,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 contextualControls.classList.remove('hidden');
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
+                centerRosterGrid();
                 setRosterView('positional'); // Set default view
                 
                 populateLeagueSelect(state.leagues);
@@ -484,8 +485,9 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 updateCompareButtonState();
 
                 renderAllTeamData(teams);
-                
+
                 rosterView.classList.remove('hidden');
+                centerRosterGrid();
 
             } catch (error) {
                 console.error(`Error loading league ${leagueId}:`, error);
@@ -495,6 +497,44 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         }
         
         // --- Compare & Trade Logic ---
+        function scrollViewportToTop({ behavior = 'smooth' } = {}) {
+            const scrollTarget = document.scrollingElement || document.documentElement || document.body;
+            if (!scrollTarget) {
+                return;
+            }
+
+            const performScroll = (scrollBehavior) => {
+                if (typeof window.scrollTo === 'function') {
+                    try {
+                        window.scrollTo({ top: 0, behavior: scrollBehavior });
+                    } catch (error) {
+                        // Some browsers (older Safari) don't support object-based scrollTo with an options object.
+                        window.scrollTo(0, 0);
+                    }
+                    return;
+                }
+
+                if (typeof scrollTarget.scrollTo === 'function') {
+                    try {
+                        scrollTarget.scrollTo({ top: 0, behavior: scrollBehavior });
+                        return;
+                    } catch (error) {
+                        // Fall through to direct assignment below.
+                    }
+                }
+
+                scrollTarget.scrollTop = 0;
+            };
+
+            performScroll(behavior);
+
+            const fallbackBehavior = behavior === 'smooth' ? 'auto' : behavior;
+            const schedule = typeof requestAnimationFrame === 'function'
+                ? requestAnimationFrame
+                : (cb) => setTimeout(cb, 0);
+            schedule(() => performScroll(fallbackBehavior));
+        }
+
         function handleTeamSelect(e) {
             const header = e.target.closest('.team-header-item');
             if (header) {
@@ -513,7 +553,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                     rosterGrid.classList.remove('is-preview-mode');
 
                     clearTrade();
-                    window.scrollTo(0, 0); // scroll to top
+                    scrollViewportToTop();
                     updateHeaderPreviewState(); // call before render
                     renderAllTeamData(state.currentTeams);
 
@@ -534,6 +574,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         rosterView.classList.add('is-trade-mode');
                         rosterGrid.classList.add('is-preview-mode');
                         updateHeaderPreviewState(); // call before render
+                        scrollViewportToTop();
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
                     }
@@ -557,8 +598,9 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             updateHeaderPreviewState(); // call before render
             if (!state.isCompareMode) {
                 clearTrade();
-                window.scrollTo(0, 0); // scroll to top
+                scrollViewportToTop();
             } else {
+                scrollViewportToTop();
                 renderTradeBlock();
             }
             renderAllTeamData(state.currentTeams);
@@ -576,10 +618,10 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             state.isCompareMode = false;
             rosterView.classList.remove('is-trade-mode');
             rosterGrid.classList.remove('is-preview-mode');
-            
+
             updateCompareButtonState();
             clearTrade();
-            window.scrollTo(0, 0); // scroll to top
+            scrollViewportToTop();
             updateHeaderPreviewState(); // call before render
             if (state.currentTeams) {
                 renderAllTeamData(state.currentTeams);
@@ -688,6 +730,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
                 column.classList.toggle('compare-search-hidden', Boolean(query) && !hasMatch);
             });
+
+            centerRosterGrid();
         }
 
         let searchDebounce;
@@ -1635,7 +1679,7 @@ const SEASON_META_HEADERS = {
             const teams = rosters.map(roster => {
                 const owner = userMap[roster.owner_id];
                 const allPlayers = roster.players || [];
-                
+
                 const starterIds = roster.starters || [];
                 const starters = starterIds.map((playerId, index) => {
                     const slot = rosterPositions[index] || 'FLEX';
@@ -1656,6 +1700,7 @@ const SEASON_META_HEADERS = {
                 return {
                     isUserTeam,
                     teamName: owner?.display_name || `Team ${roster.roster_id}`,
+                    record: formatTeamRecord(roster.settings),
                     starters,
                     bench: bench.map(p => getPlayerData(p, 'BN')).sort((a, b) => (b.ktc || 0) - (a.ktc || 0)),
                     taxi,
@@ -1663,7 +1708,7 @@ const SEASON_META_HEADERS = {
                     allPlayers: allPlayers.map(pId => getPlayerData(pId, ''))
                 };
             });
-            
+
             state.currentTeams = teams;
 
             return teams.sort((a, b) => {
@@ -1671,6 +1716,19 @@ const SEASON_META_HEADERS = {
                 if (b.isUserTeam) return 1;
                 return a.teamName.localeCompare(b.teamName);
             });
+        }
+
+        function formatTeamRecord(settings = {}) {
+            const wins = Number.isFinite(settings?.wins) ? settings.wins : null;
+            const losses = Number.isFinite(settings?.losses) ? settings.losses : null;
+            const ties = Number.isFinite(settings?.ties) ? settings.ties : 0;
+
+            if (wins === null || losses === null) {
+                return null;
+            }
+
+            const baseRecord = `${wins}-${losses}`;
+            return ties ? `${baseRecord}-${ties}` : baseRecord;
         }
         
         function getOwnedPicks(rosterId, tradedPicks, leagueInfo) {
@@ -2959,6 +3017,36 @@ const wrTeStatOrder = [
             leagueSelect.disabled = false;
         }
 
+        function centerRosterGrid() {
+            if (!rosterGrid) {
+                return;
+            }
+
+            const container = rosterContainer || rosterGrid.parentElement;
+            if (!container) {
+                return;
+            }
+
+            // Clear previous adjustments before measuring widths.
+            rosterGrid.style.paddingLeft = '';
+            rosterGrid.style.paddingRight = '';
+
+            const availableWidth = container.clientWidth || container.getBoundingClientRect()?.width || 0;
+            const gridWidth = rosterGrid.scrollWidth;
+
+            if (!availableWidth || !gridWidth) {
+                return;
+            }
+
+            if (gridWidth < availableWidth) {
+                const totalGap = Math.max(availableWidth - gridWidth, 0);
+                const startGap = Math.floor(totalGap / 2);
+                const endGap = totalGap - startGap;
+                rosterGrid.style.paddingLeft = `${startGap}px`;
+                rosterGrid.style.paddingRight = `${endGap}px`;
+            }
+        }
+
         function renderAllTeamData(teams) {
             rosterGrid.innerHTML = '';
             rosterGrid.style.justifyContent = ''; // Reset style
@@ -2987,11 +3075,23 @@ const wrTeStatOrder = [
                 const teamNameSpan = document.createElement('span');
                 teamNameSpan.className = 'team-name';
                 teamNameSpan.textContent = team.teamName;
-                header.title = team.teamName;
+
+                if (team.record) {
+                    header.title = `${team.teamName} (${team.record})`;
+                } else {
+                    header.title = team.teamName;
+                }
 
 
                 header.appendChild(checkbox);
                 header.appendChild(teamNameSpan);
+
+                if (team.record) {
+                    const recordSpan = document.createElement('span');
+                    recordSpan.className = 'team-record';
+                    recordSpan.textContent = `(${team.record})`;
+                    header.appendChild(recordSpan);
+                }
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
@@ -3003,6 +3103,7 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+            centerRosterGrid();
             adjustStickyHeaders();
             syncRosterHeaderPosition();
         }
@@ -3860,6 +3961,9 @@ const wrTeStatOrder = [
             if (!headerContainer) return;
             const headerHeight = headerContainer.offsetHeight;
             const rootStyles = getComputedStyle(document.documentElement);
+            // The gap is controlled via the --roster-header-gap custom property so designers can fine-tune spacing without
+            // touching the JavaScript. Update the value in styles.css to move the sticky team headers closer to or farther
+            // from the global header.
             const rosterGapRaw = rootStyles.getPropertyValue('--roster-header-gap');
             const rosterGap = Number.parseFloat(rosterGapRaw) || 0;
             const stickyOffset = Math.max(headerHeight - rosterGap, 0);
@@ -3876,7 +3980,10 @@ const wrTeStatOrder = [
                 document.documentElement.style.removeProperty('--roster-header-height');
             }
         }
-        window.addEventListener('resize', adjustStickyHeaders);
+        window.addEventListener('resize', () => {
+            adjustStickyHeaders();
+            centerRosterGrid();
+        });
 
         function syncRosterHeaderPosition() {
             const header = document.getElementById('header-container');
@@ -3990,6 +4097,9 @@ const wrTeStatOrder = [
 
         function setLoading(isLoading, message = 'Loading...') {
             welcomeScreen?.classList.add('hidden');
+            if (document.body?.dataset?.page === 'rosters') {
+                adjustStickyHeaders();
+            }
             const buttons = [fetchRostersButton, fetchOwnershipButton].filter(Boolean);
             if (isLoading) {
                 const msgEl = loadingIndicator.querySelector('.loading-message'); if (msgEl) { msgEl.textContent = message; } else { loadingIndicator.textContent = message; }

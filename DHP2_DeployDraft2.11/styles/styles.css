@@ -51,7 +51,7 @@
 
       :root {
         --roster-header-height: 0px;
-        --roster-header-gap: 8px;
+        --roster-header-gap: 12px; /* Adjust this value to change the vertical gap beneath the global header on roster pages */
       }
 
       body {
@@ -839,15 +839,15 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
-        #rosterContainer { 
+        #rosterContainer {
             padding: 1px;
         }
-        #rosterGrid { 
-            display: flex; 
-            flex-direction: row; 
-            flex-wrap: nowrap; 
+        #rosterGrid {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
             gap: 2px;
-            min-width: min-content; 
+            min-width: min-content;
             padding-bottom: 1rem; /* For scrollbar clearance */
 
         }
@@ -870,15 +870,15 @@
 }
 		
        .team-header-item {
-      display: flex;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      font-size: 0.75rem;
+      column-gap: 0.25rem;
+      font-size: 0.7rem;
       font-weight: 500;
       color: #d0d1ee;
       text-align: center;
-      padding: 0.4rem 0.5rem;
+      padding: 0.32rem 0.45rem;
       cursor: pointer;
     
       /* · · Glass look to match filter groups · · */
@@ -1089,7 +1089,7 @@
             cursor: pointer;
             position: relative;
             transition: all 0.2s ease-in-out;
-            flex-shrink: 0;
+            justify-self: start;
         }
         .team-compare-checkbox.selected {
             border-color: var(--color-accent-primary);
@@ -2703,10 +2703,21 @@ border: 1px solid rgb(169 178 227 / 9%);
 }
 
 .team-header-item .team-name {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90px;
+    text-align: center;
+    justify-self: center;
+}
+
+.team-header-item .team-record {
+    font-size: 0.58rem;
+    color: #9ea5d8;
+    white-space: nowrap;
+    justify-self: start;
 }
 
 #analyzeLeagueButton {
