@@ -546,6 +546,10 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             if (appHeader) {
                 appHeader.classList.toggle('preview-active', state.isCompareMode);
             }
+            refreshStickyHeaders();
+            if (!state.isCompareMode) {
+                scrollRosterToTop();
+            }
         }
 
         function handleCompareClick() {
@@ -3852,6 +3856,12 @@ const wrTeStatOrder = [
         function ordinalSuffix(i){ const j=i%10, k=i%100; if(j===1&&k!==11) return i+'st'; if(j===2&&k!==12) return i+'nd'; if(j===3&&k!==13) return i+'rd'; return i+'th'; }
 
         // --- Utility Functions ---
+        function scrollRosterToTop() {
+            if (typeof window?.scrollTo === 'function') {
+                window.scrollTo({ top: 0, behavior: 'auto' });
+            }
+        }
+
         function adjustStickyHeaders() {
             const headerContainer = document.getElementById('header-container');
             if (!headerContainer) return;
@@ -3874,6 +3884,13 @@ const wrTeStatOrder = [
             }
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        function refreshStickyHeaders() {
+            requestAnimationFrame(() => {
+                adjustStickyHeaders();
+                syncRosterHeaderPosition();
+            });
+        }
 
         function syncRosterHeaderPosition() {
             const header = document.getElementById('header-container');
