@@ -270,12 +270,26 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         }
 
         if (pageType === 'rosters') {
+            const teamHeadersContainer = document.getElementById('teamHeadersContainer');
+            const rosterContainer = document.getElementById('rosterContainer');
+
             leagueSelect?.addEventListener('change', (e) => {
                 handleLeagueSelect(e);
                 if (e && e.target && e.target.blur) e.target.blur();
             });
-            rosterGrid?.addEventListener('click', handleTeamSelect);
+            teamHeadersContainer?.addEventListener('click', handleTeamSelect);
             mainContent?.addEventListener('click', handleAssetClickForTrade);
+
+            if (teamHeadersContainer && rosterContainer) {
+                let isSyncing = false;
+                const syncScroll = (source, target) => {
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    target.scrollLeft = source.scrollLeft;
+                    requestAnimationFrame(() => { isSyncing = false; });
+                };
+                rosterContainer.addEventListener('scroll', () => syncScroll(rosterContainer, teamHeadersContainer));
+            }
 
             tradeSimulator.addEventListener('click', (e) => {
                 const compareButton = e.target.closest('#comparePlayersButton');
@@ -2957,22 +2971,24 @@ const wrTeStatOrder = [
         }
 
         function renderAllTeamData(teams) {
+            const teamHeadersContainer = document.getElementById('teamHeadersContainer');
             rosterGrid.innerHTML = '';
-            rosterGrid.style.justifyContent = ''; // Reset style
+            teamHeadersContainer.innerHTML = '';
+            rosterGrid.style.justifyContent = '';
 
             let teamsToRender = teams;
             if (state.isCompareMode) {
                 teamsToRender = teams.filter(team => state.teamsToCompare.has(team.teamName));
                 rosterGrid.style.justifyContent = 'center';
+                teamHeadersContainer.style.justifyContent = 'center';
+            } else {
+                teamHeadersContainer.style.justifyContent = '';
             }
 
             teamsToRender.forEach(team => {
-                const columnWrapper = document.createElement('div');
-                columnWrapper.className = 'roster-column';
-                columnWrapper.dataset.teamName = team.teamName;
-
                 const header = document.createElement('div');
                 header.className = 'team-header-item';
+                 header.dataset.teamName = team.teamName;
 
                 const checkbox = document.createElement('div');
                 checkbox.className = 'team-compare-checkbox';
@@ -2986,13 +3002,16 @@ const wrTeStatOrder = [
                 teamNameSpan.textContent = team.teamName;
                 header.title = team.teamName;
 
-
                 header.appendChild(checkbox);
                 header.appendChild(teamNameSpan);
+                teamHeadersContainer.appendChild(header);
+
+                const columnWrapper = document.createElement('div');
+                columnWrapper.className = 'roster-column';
+                columnWrapper.dataset.teamName = team.teamName;
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
-                columnWrapper.appendChild(header);
                 columnWrapper.appendChild(card);
                 rosterGrid.appendChild(columnWrapper);
             });
@@ -3000,6 +3019,7 @@ const wrTeStatOrder = [
             if (compareSearchInput && compareSearchInput.value) {
                 filterTeamsByQuery(compareSearchInput.value);
             }
+            adjustStickyTop();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3850,6 +3870,16 @@ const wrTeStatOrder = [
         function ordinalSuffix(i){ const j=i%10, k=i%100; if(j===1&&k!==11) return i+'st'; if(j===2&&k!==12) return i+'nd'; if(j===3&&k!==13) return i+'rd'; return i+'th'; }
 
         // --- Utility Functions ---
+        function adjustStickyTop() {
+            const headerContainer = document.getElementById('header-container');
+            const teamHeadersContainer = document.getElementById('teamHeadersContainer');
+            if (headerContainer && teamHeadersContainer) {
+                const headerHeight = headerContainer.offsetHeight;
+                teamHeadersContainer.style.top = `${headerHeight}px`;
+            }
+        }
+        window.addEventListener('resize', adjustStickyTop);
+
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
             tooltip.className = 'custom-tooltip';

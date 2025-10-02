@@ -815,6 +815,23 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
+        .team-headers-container {
+            position: sticky;
+            top: 0; /* This will be adjusted by JS */
+            z-index: 2;
+            background-color: var(--color-bg);
+            padding: 0 1px 4px 1px;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 2px;
+            min-width: 100%;
+            overflow-x: auto;
+            scrollbar-width: none; /* For Firefox */
+        }
+        .team-headers-container::-webkit-scrollbar {
+            display: none; /* For Chrome, Safari, and Opera */
+        }
         #rosterContainer { 
             width: 100%; 
             overflow-x: auto; 
@@ -848,6 +865,8 @@
 }
 		
        .team-header-item {
+      width: 127px;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
