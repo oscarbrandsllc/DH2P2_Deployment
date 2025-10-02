@@ -3001,6 +3001,7 @@ const wrTeStatOrder = [
                 filterTeamsByQuery(compareSearchInput.value);
             }
             adjustStickyHeaders();
+            syncRosterHeaderPosition();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3859,8 +3860,34 @@ const wrTeStatOrder = [
             teamHeaders.forEach(header => {
                 header.style.top = `${headerHeight}px`;
             });
+
+            const isRosterPage = document.body?.dataset?.page === 'rosters';
+            if (isRosterPage) {
+                document.documentElement.style.setProperty('--roster-header-height', `${headerHeight}px`);
+            } else {
+                document.documentElement.style.removeProperty('--roster-header-height');
+            }
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        function syncRosterHeaderPosition() {
+            const header = document.getElementById('header-container');
+            if (!header) return;
+            const isRosterPage = document.body?.dataset?.page === 'rosters';
+            if (!isRosterPage) {
+                if (header.style.transform) {
+                    header.style.transform = '';
+                }
+                return;
+            }
+            if (header.style.transform) {
+                header.style.transform = '';
+            }
+        }
+
+        window.addEventListener('scroll', syncRosterHeaderPosition, { passive: true });
+        window.addEventListener('resize', syncRosterHeaderPosition);
+        syncRosterHeaderPosition();
 
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
