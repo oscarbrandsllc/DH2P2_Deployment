@@ -3001,6 +3001,7 @@ const wrTeStatOrder = [
                 filterTeamsByQuery(compareSearchInput.value);
             }
             adjustStickyHeaders();
+            applyRosterHeaderSync();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3861,6 +3862,68 @@ const wrTeStatOrder = [
             });
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        let rosterHeaderSyncFrame = null;
+        let rosterHeaderLastX = null;
+
+        function getRosterScrollLeft() {
+            const rosterHost = rosterContainer && (rosterContainer.scrollWidth - rosterContainer.clientWidth > 1)
+                ? rosterContainer.scrollLeft
+                : 0;
+            const scroller = document.scrollingElement || document.documentElement || document.body;
+            const docScroll = scroller?.scrollLeft || 0;
+            const winScroll = typeof window !== 'undefined'
+                ? (window.scrollX || window.pageXOffset || 0)
+                : 0;
+            const bodyScroll = document.body?.scrollLeft || 0;
+            return Math.round(Math.max(rosterHost, docScroll, winScroll, bodyScroll));
+        }
+
+        function applyRosterHeaderSync() {
+            rosterHeaderSyncFrame = null;
+            const header = document.getElementById('header-container');
+            if (!header) return;
+
+            const isRosterPage = document.body?.dataset?.page === 'rosters';
+            if (!isRosterPage) {
+                if (header.style.transform) {
+                    header.style.transform = '';
+                }
+                rosterHeaderLastX = 0;
+                return;
+            }
+
+            const scrollLeft = getRosterScrollLeft();
+            if (rosterHeaderLastX === scrollLeft) {
+                return;
+            }
+
+            rosterHeaderLastX = scrollLeft;
+
+            if (!scrollLeft) {
+                header.style.transform = '';
+                return;
+            }
+
+            header.style.transform = `translate3d(${scrollLeft}px, 0, 0)`;
+        }
+
+        function scheduleRosterHeaderSync() {
+            if (rosterHeaderSyncFrame !== null) {
+                return;
+            }
+            rosterHeaderSyncFrame = requestAnimationFrame(applyRosterHeaderSync);
+        }
+
+        const rosterScrollTargets = [window, document.body, document.scrollingElement, rosterContainer];
+        rosterScrollTargets.forEach(target => {
+            if (!target || typeof target.addEventListener !== 'function') {
+                return;
+            }
+            target.addEventListener('scroll', scheduleRosterHeaderSync, { passive: true });
+        });
+        window.addEventListener('resize', scheduleRosterHeaderSync);
+        applyRosterHeaderSync();
 
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');

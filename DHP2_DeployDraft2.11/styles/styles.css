@@ -209,6 +209,18 @@
             background: linear-gradient(180deg, rgba(11, 11, 18, 0.2) 10%, transparent 100%);
         }
 
+        body[data-page="rosters"] #header-container {
+            left: 0;
+            right: 0;
+            max-width: none;
+            will-change: transform;
+        }
+
+        body[data-page="rosters"] #header-container .app-header {
+            width: 100%;
+            max-width: none;
+        }
+
 /* ⬇︎  UTILITY CLASSES  ⬇︎ */
         .glass-panel {
        background-color: rgba(13, 14, 35, 0.21);
@@ -2067,7 +2079,8 @@ body { min-height: 100%; }
 
 
   /* · · Ownership: centering + width sanity (mobile-safe) · · */
-html, body { overflow-x: hidden !important; }
+body:not([data-page="rosters"]) { overflow-x: hidden !important; }
+body[data-page="rosters"] { overflow-x: auto !important; }
 main#content { align-items: stretch !important; }
 
 #playerListView { 
