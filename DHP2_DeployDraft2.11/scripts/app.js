@@ -395,6 +395,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('rosters');
                 contextualControls.classList.remove('hidden');
+                adjustStickyHeaders(); // Recalculate header height for correct padding
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
                 setRosterView('positional'); // Set default view
@@ -513,7 +514,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                     rosterGrid.classList.remove('is-preview-mode');
 
                     clearTrade();
-                    window.scrollTo(0, 0); // scroll to top
+                    setTimeout(() => window.scrollTo(0, 0), 0); // scroll to top
                     updateHeaderPreviewState(); // call before render
                     renderAllTeamData(state.currentTeams);
 
@@ -533,6 +534,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         state.isCompareMode = true;
                         rosterView.classList.add('is-trade-mode');
                         rosterGrid.classList.add('is-preview-mode');
+                        setTimeout(() => window.scrollTo(0, 0), 0); // scroll to top
                         updateHeaderPreviewState(); // call before render
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
@@ -557,8 +559,9 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             updateHeaderPreviewState(); // call before render
             if (!state.isCompareMode) {
                 clearTrade();
-                window.scrollTo(0, 0); // scroll to top
+                setTimeout(() => window.scrollTo(0, 0), 0); // scroll to top
             } else {
+                setTimeout(() => window.scrollTo(0, 0), 0); // scroll to top
                 renderTradeBlock();
             }
             renderAllTeamData(state.currentTeams);
