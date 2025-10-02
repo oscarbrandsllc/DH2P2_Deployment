@@ -201,7 +201,7 @@
         #header-container {
             position: sticky;
             top: 0;
-            z-index: 10;
+            z-index: 30;
             padding: 0.1rem 0rem 0.4rem 0rem;
             border-radius: var(--panel-border-radius);  /* EDITED: Changed background to be more transparent to see bg */
             background: linear-gradient(180deg, rgba(11, 11, 18, 0.2) 10%, transparent 100%);
