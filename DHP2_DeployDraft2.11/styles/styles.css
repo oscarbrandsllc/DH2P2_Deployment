@@ -51,7 +51,7 @@
 
       :root {
         --roster-header-height: 0px;
-        --roster-header-gap: 8px;
+        --roster-header-gap: 12px; /* Adjust this value to change the vertical gap beneath the global header on roster pages */
       }
 
       body {

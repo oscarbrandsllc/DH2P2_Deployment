@@ -513,9 +513,10 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                     rosterGrid.classList.remove('is-preview-mode');
 
                     clearTrade();
-
+                    window.scrollTo(0, 0); // scroll to top
+                    updateHeaderPreviewState(); // call before render
                     renderAllTeamData(state.currentTeams);
-                    updateHeaderPreviewState();
+
 
                 } else {
                     // If a new team is selected
@@ -532,9 +533,9 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         state.isCompareMode = true;
                         rosterView.classList.add('is-trade-mode');
                         rosterGrid.classList.add('is-preview-mode');
+                        updateHeaderPreviewState(); // call before render
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
-                        updateHeaderPreviewState();
                     }
                 }
                 updateCompareButtonState();
@@ -553,13 +554,14 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             rosterView.classList.toggle('is-trade-mode', state.isCompareMode);
             rosterGrid.classList.toggle('is-preview-mode', state.isCompareMode);
             updateCompareButtonState();
-            renderAllTeamData(state.currentTeams); 
+            updateHeaderPreviewState(); // call before render
             if (!state.isCompareMode) {
                 clearTrade();
+                window.scrollTo(0, 0); // scroll to top
             } else {
                 renderTradeBlock();
             }
-            updateHeaderPreviewState();
+            renderAllTeamData(state.currentTeams);
         }
 
         function handleClearCompare(keepUserTeam = false) {
@@ -577,10 +579,11 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             
             updateCompareButtonState();
             clearTrade();
+            window.scrollTo(0, 0); // scroll to top
+            updateHeaderPreviewState(); // call before render
             if (state.currentTeams) {
                 renderAllTeamData(state.currentTeams);
             }
-            updateHeaderPreviewState();
         }
 
         function lockCompareButtonSize() {
@@ -3857,6 +3860,9 @@ const wrTeStatOrder = [
             if (!headerContainer) return;
             const headerHeight = headerContainer.offsetHeight;
             const rootStyles = getComputedStyle(document.documentElement);
+            // The gap is controlled via the --roster-header-gap custom property so designers can fine-tune spacing without
+            // touching the JavaScript. Update the value in styles.css to move the sticky team headers closer to or farther
+            // from the global header.
             const rosterGapRaw = rootStyles.getPropertyValue('--roster-header-gap');
             const rosterGap = Number.parseFloat(rosterGapRaw) || 0;
             const stickyOffset = Math.max(headerHeight - rosterGap, 0);
