@@ -1891,6 +1891,7 @@
 }
 #rosterPlayerCardKey .legend-ktc { color: #00EBC7; font-weight: 800; }
 #rosterPlayerCardKey .legend-adp { color: #58A7FF; font-weight: 800; }
+#rosterPlayerCardKey .legend-ppg { color: #58A7FF; font-weight: 800; }
 
   /* · · External footnote below the card · · */
 #rosterCardFootnote.legend-footnote {
@@ -2351,6 +2352,7 @@ font-weight: 500 !important;
 }
 #rosterPlayerCardKey .legend-ktc{ color: #00EBC7 !important; }
 #rosterPlayerCardKey .legend-adp{ color: #58A7FF !important; }
+#rosterPlayerCardKey .legend-ppg{ color: #58A7FF !important; }
 
   /* · · Footnote · · */
 #rosterCardFootnote.legend-footnote{
