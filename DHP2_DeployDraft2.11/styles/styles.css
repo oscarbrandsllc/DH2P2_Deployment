@@ -815,15 +815,19 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
-        #rosterContainer { 
+        #rosterContainer {
             padding: 1px;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
         }
-        #rosterGrid { 
-            display: flex; 
-            flex-direction: row; 
-            flex-wrap: nowrap; 
+        #rosterGrid {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
             gap: 2px;
-            min-width: min-content; 
+            min-width: max-content;
             padding-bottom: 1rem; /* For scrollbar clearance */
 
         }
