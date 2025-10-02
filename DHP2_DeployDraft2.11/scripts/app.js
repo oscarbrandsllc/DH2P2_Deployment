@@ -3856,9 +3856,17 @@ const wrTeStatOrder = [
             const headerContainer = document.getElementById('header-container');
             if (!headerContainer) return;
             const headerHeight = headerContainer.offsetHeight;
+            const rootStyles = getComputedStyle(document.documentElement);
+            // The gap is controlled via the --roster-header-gap custom property so designers can fine-tune spacing without
+            // touching the JavaScript. Update the value in styles.css to move the sticky team headers closer to or farther
+            // from the global header.
+            const rosterGapRaw = rootStyles.getPropertyValue('--roster-header-gap');
+            const rosterGap = Number.parseFloat(rosterGapRaw) || 0;
+            const stickyOffset = Math.max(headerHeight - rosterGap, 0);
+
             const teamHeaders = document.querySelectorAll('.team-header-item');
             teamHeaders.forEach(header => {
-                header.style.top = `${headerHeight}px`;
+                header.style.top = `${stickyOffset}px`;
             });
 
             const isRosterPage = document.body?.dataset?.page === 'rosters';
