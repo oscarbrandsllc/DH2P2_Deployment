@@ -889,6 +889,9 @@
       box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
       position: sticky;
       z-index: 1;
+      --team-header-offset: var(--team-header-top, var(--roster-header-height, 0px));
+      top: var(--team-header-offset);
+      margin-top: calc(-1 * var(--team-header-offset));
 }
         .team-header-item:hover {
             box-shadow: 0 0 5px #7300ff;
