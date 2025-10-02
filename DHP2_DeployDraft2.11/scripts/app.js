@@ -3001,6 +3001,7 @@ const wrTeStatOrder = [
                 filterTeamsByQuery(compareSearchInput.value);
             }
             adjustStickyHeaders();
+            applyRosterHeaderSync();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3861,6 +3862,106 @@ const wrTeStatOrder = [
             });
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        let rosterHeaderSyncFrame = null;
+        let rosterHeaderLastX = null;
+        let rosterHeaderScrollHost = null;
+
+        function selectRosterScrollHost() {
+            if (rosterContainer && (rosterContainer.scrollWidth - rosterContainer.clientWidth > 1)) {
+                return rosterContainer;
+            }
+            const scroller = document.scrollingElement || document.documentElement || document.body;
+            if (scroller && (scroller.scrollWidth - scroller.clientWidth > 1)) {
+                return scroller;
+            }
+            return typeof window !== 'undefined' ? window : null;
+        }
+
+        function readScrollLeft(host) {
+            if (!host) return 0;
+            if (host === window) {
+                return window.scrollX || window.pageXOffset || 0;
+            }
+            if (host === document || host === document.body) {
+                return document.body?.scrollLeft || 0;
+            }
+            if (host === document.scrollingElement || host === document.documentElement) {
+                return (document.scrollingElement || document.documentElement)?.scrollLeft || 0;
+            }
+            return host.scrollLeft || 0;
+        }
+
+        function applyRosterHeaderSync() {
+            rosterHeaderSyncFrame = null;
+            const header = document.getElementById('header-container');
+            if (!header) return;
+
+            const isRosterPage = document.body?.dataset?.page === 'rosters';
+            if (!isRosterPage) {
+                if (header.style.transform) {
+                    header.style.transform = '';
+                }
+                rosterHeaderLastX = null;
+                rosterHeaderScrollHost = null;
+                return;
+            }
+
+            if (!rosterHeaderScrollHost) {
+                rosterHeaderScrollHost = selectRosterScrollHost();
+            }
+
+            const rawScrollLeft = readScrollLeft(rosterHeaderScrollHost);
+            const scrollLeft = Math.abs(rawScrollLeft) < 0.1 ? 0 : rawScrollLeft;
+
+            if (rosterHeaderLastX !== null && Math.abs(rosterHeaderLastX - scrollLeft) < 0.1) {
+                return;
+            }
+
+            rosterHeaderLastX = scrollLeft;
+
+            if (!scrollLeft) {
+                header.style.transform = '';
+                return;
+            }
+
+            header.style.transform = `translateX(${scrollLeft}px)`;
+        }
+
+        function scheduleRosterHeaderSync(host) {
+            if (host) {
+                rosterHeaderScrollHost = host === document ? document.scrollingElement : host;
+            }
+            if (rosterHeaderSyncFrame !== null) {
+                return;
+            }
+            rosterHeaderSyncFrame = requestAnimationFrame(applyRosterHeaderSync);
+        }
+
+        const rosterScrollTargets = [];
+        if (typeof window !== 'undefined') {
+            rosterScrollTargets.push({ target: window, host: window });
+        }
+        if (rosterContainer) {
+            rosterScrollTargets.push({ target: rosterContainer, host: rosterContainer });
+        }
+        const rosterDocScroller = document.scrollingElement || document.documentElement || null;
+        if (rosterDocScroller && rosterDocScroller !== window && rosterDocScroller !== document.body) {
+            rosterScrollTargets.push({ target: rosterDocScroller, host: rosterDocScroller });
+        }
+
+        rosterScrollTargets.forEach(({ target, host }) => {
+            if (!target || typeof target.addEventListener !== 'function') {
+                return;
+            }
+            const handler = () => scheduleRosterHeaderSync(host);
+            target.addEventListener('scroll', handler, { passive: true });
+        });
+        window.addEventListener('resize', () => {
+            rosterHeaderScrollHost = null;
+            scheduleRosterHeaderSync();
+        });
+        applyRosterHeaderSync();
 
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
