@@ -51,6 +51,7 @@
 
       :root {
         --roster-header-height: 0px;
+        --roster-header-gap: 8px;
       }
 
       body {
@@ -229,7 +230,7 @@
         }
 
         body[data-page="rosters"] main#content {
-            padding-top: calc(var(--roster-header-height, 0px) + 0.75rem);
+            padding-top: max(calc(var(--roster-header-height, 0px) - var(--roster-header-gap, 0px)), 0px);
         }
 
 /* ⬇︎  UTILITY CLASSES  ⬇︎ */
