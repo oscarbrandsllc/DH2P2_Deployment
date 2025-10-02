@@ -3151,6 +3151,7 @@ const wrTeStatOrder = [
             const slotAbbr = { 'SUPER_FLEX': 'SFLX', 'FLEX': 'FLX' };
             const displaySlot = state.currentRosterView === 'depth' ? (slotAbbr[player.slot] || player.slot) : player.pos;
             const fullPlayer = state.players?.[player.id];
+            const playerRanks = calculatePlayerStatsAndRanks(player.id) || getDefaultPlayerRanks();
             const firstName = (player.first_name || fullPlayer?.first_name || '').trim();
             const lastName = (player.last_name || fullPlayer?.last_name || '').trim();
             const nameCandidates = [
@@ -3182,9 +3183,8 @@ const wrTeStatOrder = [
                 row.classList.add('player-selected');
             }
 
-            const adp = player.adp ? player.adp.toFixed(1) : '—';
             const ktc = player.ktc || '—';
-            
+
             const teamKey = (player.team || 'FA').toUpperCase();
             const logoKeyMap = { 'WSH': 'was', 'WAS': 'was', 'JAC': 'jax', 'LA': 'lar' };
             const normalizedKey = logoKeyMap[teamKey] || teamKey.toLowerCase();
@@ -3193,7 +3193,18 @@ const wrTeStatOrder = [
               ? `<img class="team-logo glow" src="${src}" alt="${teamKey}" width="19" height="19" loading="eager">`
               : `<div class="team-tag" style="background-color: #64748b; color: white;">FA</div>`;
 
-            const posRankColor = getPosRankColor(player.posRank);
+            const basePos = (player.pos || fullPlayer?.position || displaySlot || '').toUpperCase();
+            const fptsPosRankNumber = Number.parseInt(playerRanks.posRank, 10);
+            const hasFptsPosRank = Number.isFinite(fptsPosRankNumber) && fptsPosRankNumber > 0;
+            const fptsPosRankDisplay = hasFptsPosRank ? `${basePos}·${fptsPosRankNumber}` : basePos;
+            const posRankColor = getPosRankColor(fptsPosRankDisplay);
+            const ppgValue = typeof playerRanks.ppg === 'string' ? playerRanks.ppg : Number.isFinite(playerRanks.ppg) ? playerRanks.ppg.toFixed(2) : '0.00';
+            const rawPpgPosRankNumber = Number.parseInt(playerRanks.ppgPosRank, 10);
+            const hasPpgPosRank = Number.isFinite(rawPpgPosRankNumber) && rawPpgPosRankNumber > 0;
+            const ppgPosRankNumber = hasPpgPosRank ? rawPpgPosRankNumber : null;
+            const ktcPosRankMatch = typeof player.posRank === 'string' ? player.posRank.match(/(\d+)/) : null;
+            const rawKtcPosRankNumber = ktcPosRankMatch ? Number.parseInt(ktcPosRankMatch[1], 10) : null;
+            const ktcPosRankNumber = Number.isFinite(rawKtcPosRankNumber) && rawKtcPosRankNumber > 0 ? rawKtcPosRankNumber : null;
 
             row.innerHTML = `
                 <div class="player-main-line">
@@ -3201,22 +3212,37 @@ const wrTeStatOrder = [
                     <div class="player-name"><span class="player-name-clickable">${player.name}</span></div>
                 </div>
                 <div class="player-meta-line">
-                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${player.posRank || player.pos}</span>
+                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${fptsPosRankDisplay}</span>
                     <span class="separator">•</span>
                     <span><span class="player-age">${player.age || '?'}</span> y.o. </span>
                     <span class="separator">•</span>
                     ${teamTagHTML}
                 </div>
                 <div class="player-value-line">
-                    <span>KTC: <span class="value player-ktc">${ktc}</span></span>
-                    <span>ADP: <span class="value player-adp">${adp}</span></span>
+                    <span class="player-ktc-wrapper">KTC: <span class="value player-ktc">${ktc}</span></span>
+                    <span class="player-ppg-wrapper">PPG: <span class="value player-ppg">${ppgValue}</span></span>
                 </div>
             `;
-            
-            const ageEl = row.querySelector('.player-age'), adpEl = row.querySelector('.player-adp'), ktcEl = row.querySelector('.player-ktc');
+
+            const ageEl = row.querySelector('.player-age');
+            const ktcEl = row.querySelector('.player-ktc');
+            const ppgEl = row.querySelector('.player-ppg');
+            const playerPosRankEl = row.querySelector('.player-pos-rank');
+            if (playerPosRankEl) {
+                playerPosRankEl.textContent = fptsPosRankDisplay;
+                playerPosRankEl.style.color = posRankColor;
+            }
             if (ageEl && player.age && player.age !== '?') ageEl.style.color = getAgeColorForRoster(player.pos, parseFloat(player.age));
-            if (adpEl && player.adp) adpEl.style.color = getAdpColorForRoster(parseFloat(adp));
             if (ktcEl && player.ktc) ktcEl.style.color = getKtcColor(player.ktc);
+            if (ppgEl && typeof ppgPosRankNumber === 'number') {
+                ppgEl.style.color = getConditionalColorByRank(ppgPosRankNumber, basePos);
+            }
+
+            const ktcWrapper = row.querySelector('.player-ktc-wrapper');
+            if (ktcWrapper) {
+                ktcWrapper.classList.add('has-rank-annotation');
+                ktcWrapper.appendChild(createRankAnnotation(typeof ktcPosRankNumber === 'number' ? ktcPosRankNumber : 'NA'));
+            }
 
             const playerNameClickableEl = row.querySelector('.player-name-clickable');
             if (playerNameClickableEl) {
