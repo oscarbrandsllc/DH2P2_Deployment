@@ -815,8 +815,11 @@
   }
 }
 /* ⬇︎ ROSTER VIEW  ⬇︎ */
-        #rosterContainer { 
+        #rosterContainer {
             padding: 1px;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
         }
         #rosterGrid { 
             display: flex; 
@@ -2067,8 +2070,8 @@ body { min-height: 100%; }
 
 
   /* · · Ownership: centering + width sanity (mobile-safe) · · */
-html, body { overflow-x: hidden !important; }
-main#content { align-items: stretch !important; }
+body[data-page="ownership"] { overflow-x: hidden !important; }
+body[data-page="ownership"] main#content { align-items: stretch !important; }
 
 #playerListView { 
   width: 100% !important;
