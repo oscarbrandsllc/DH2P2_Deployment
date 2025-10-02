@@ -3001,6 +3001,7 @@ const wrTeStatOrder = [
                 filterTeamsByQuery(compareSearchInput.value);
             }
             adjustStickyHeaders();
+            syncRosterHeaderPosition();
         }
 
         function createDepthChartTeamCard(team) {
@@ -3861,6 +3862,34 @@ const wrTeStatOrder = [
             });
         }
         window.addEventListener('resize', adjustStickyHeaders);
+
+        function syncRosterHeaderPosition() {
+            const header = document.getElementById('header-container');
+            if (!header) return;
+            const isRosterPage = document.body?.dataset?.page === 'rosters';
+            if (!isRosterPage) {
+                if (header.style.transform) {
+                    header.style.transform = '';
+                }
+                return;
+            }
+            const scrollLeft = window.scrollX
+                || document.documentElement?.scrollLeft
+                || document.body?.scrollLeft
+                || 0;
+            header.style.transform = `translate3d(${scrollLeft}px, 0, 0)`;
+        }
+
+        window.addEventListener('scroll', syncRosterHeaderPosition, { passive: true });
+        if (document.body) {
+            document.body.addEventListener('scroll', syncRosterHeaderPosition, { passive: true });
+        } else {
+            window.addEventListener('DOMContentLoaded', () => {
+                document.body?.addEventListener('scroll', syncRosterHeaderPosition, { passive: true });
+            }, { once: true });
+        }
+        window.addEventListener('resize', syncRosterHeaderPosition);
+        syncRosterHeaderPosition();
 
         function showTemporaryTooltip(element, message) {
             const tooltip = document.createElement('div');
