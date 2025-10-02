@@ -1049,7 +1049,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.65rem;
+            font-size: 0.62rem;
             color: var(--color-text-secondary);
             background: #1d223faa;
             border-radius: 6px;
@@ -1057,7 +1057,7 @@
         }
         .player-value-line .value {
             font-weight: 600;
-            font-size: 0.7rem;
+            font-size: 0.66rem;
             color: var(--color-text-primary);
         }
 
@@ -1891,6 +1891,7 @@
 }
 #rosterPlayerCardKey .legend-ktc { color: #00EBC7; font-weight: 800; }
 #rosterPlayerCardKey .legend-adp { color: #58A7FF; font-weight: 800; }
+#rosterPlayerCardKey .legend-ppg { color: #58A7FF; font-weight: 800; }
 
   /* · · External footnote below the card · · */
 #rosterCardFootnote.legend-footnote {
@@ -2351,6 +2352,7 @@ font-weight: 500 !important;
 }
 #rosterPlayerCardKey .legend-ktc{ color: #00EBC7 !important; }
 #rosterPlayerCardKey .legend-adp{ color: #58A7FF !important; }
+#rosterPlayerCardKey .legend-ppg{ color: #58A7FF !important; }
 
   /* · · Footnote · · */
 #rosterCardFootnote.legend-footnote{
@@ -3731,7 +3733,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
 
     .has-rank-annotation .stat-rank-annotation {
         display: inline-block;
-        font-size: 0.65em;
+        font-size: 0.72em;
         line-height: 1;
         margin-left: 0.2em;
         transform: translateY(-0.45em);
