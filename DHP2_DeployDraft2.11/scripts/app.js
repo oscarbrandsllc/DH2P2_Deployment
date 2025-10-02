@@ -3858,7 +3858,8 @@ const wrTeStatOrder = [
             const headerHeight = headerContainer.offsetHeight;
             const teamHeaders = document.querySelectorAll('.team-header-item');
             teamHeaders.forEach(header => {
-                header.style.top = `${headerHeight}px`;
+                header.style.removeProperty('top');
+                header.style.setProperty('--team-header-top', `${headerHeight}px`);
             });
 
             const isRosterPage = document.body?.dataset?.page === 'rosters';
