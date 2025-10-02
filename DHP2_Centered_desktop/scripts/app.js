@@ -3151,6 +3151,7 @@ const wrTeStatOrder = [
             const slotAbbr = { 'SUPER_FLEX': 'SFLX', 'FLEX': 'FLX' };
             const displaySlot = state.currentRosterView === 'depth' ? (slotAbbr[player.slot] || player.slot) : player.pos;
             const fullPlayer = state.players?.[player.id];
+            const playerRanks = calculatePlayerStatsAndRanks(player.id);
             const firstName = (player.first_name || fullPlayer?.first_name || '').trim();
             const lastName = (player.last_name || fullPlayer?.last_name || '').trim();
             const nameCandidates = [
@@ -3182,9 +3183,48 @@ const wrTeStatOrder = [
                 row.classList.add('player-selected');
             }
 
-            const adp = player.adp ? player.adp.toFixed(1) : '—';
-            const ktc = player.ktc || '—';
-            
+            const parseRankNumber = (value) => {
+                if (typeof value === 'number' && Number.isFinite(value)) return value;
+                if (typeof value === 'string') {
+                    const numeric = Number.parseInt(value.replace(/[^0-9]/g, ''), 10);
+                    return Number.isFinite(numeric) ? numeric : null;
+                }
+                const numeric = Number(value);
+                return Number.isFinite(numeric) ? numeric : null;
+            };
+
+            const formatPpgValue = (value) => {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    return value.toFixed(2);
+                }
+                if (typeof value === 'string' && value.trim() !== '') {
+                    const parsed = Number.parseFloat(value);
+                    if (Number.isFinite(parsed)) {
+                        return parsed.toFixed(2);
+                    }
+                }
+                return '—';
+            };
+
+            const canonicalPos = (player.pos || displaySlot || '').toUpperCase();
+            const fptsPosRankNumber = parseRankNumber(playerRanks.posRank);
+            const fallbackPosRank = (typeof player.posRank === 'string' && player.posRank) ? player.posRank : canonicalPos;
+            const fptsPosRankLabel = (Number.isFinite(fptsPosRankNumber) && canonicalPos)
+                ? `${canonicalPos}·${fptsPosRankNumber}`
+                : (fallbackPosRank || canonicalPos || '');
+
+            const ktcNumeric = typeof player.ktc === 'number'
+                ? player.ktc
+                : Number.parseInt(player.ktc, 10);
+            const ktc = Number.isFinite(ktcNumeric) ? ktcNumeric : '—';
+
+            const ppgNumeric = typeof playerRanks.ppg === 'number'
+                ? playerRanks.ppg
+                : Number.parseFloat(playerRanks.ppg);
+            const ppgDisplay = Number.isFinite(ppgNumeric) ? formatPpgValue(ppgNumeric) : formatPpgValue(playerRanks.ppg);
+            const ppgRankNumber = parseRankNumber(playerRanks.ppgPosRank);
+            const ktcRankNumber = parseRankNumber(player.posRank);
+
             const teamKey = (player.team || 'FA').toUpperCase();
             const logoKeyMap = { 'WSH': 'was', 'WAS': 'was', 'JAC': 'jax', 'LA': 'lar' };
             const normalizedKey = logoKeyMap[teamKey] || teamKey.toLowerCase();
@@ -3193,7 +3233,7 @@ const wrTeStatOrder = [
               ? `<img class="team-logo glow" src="${src}" alt="${teamKey}" width="19" height="19" loading="eager">`
               : `<div class="team-tag" style="background-color: #64748b; color: white;">FA</div>`;
 
-            const posRankColor = getPosRankColor(player.posRank);
+            const posRankColor = getPosRankColor(fptsPosRankLabel || fallbackPosRank);
 
             row.innerHTML = `
                 <div class="player-main-line">
@@ -3201,7 +3241,7 @@ const wrTeStatOrder = [
                     <div class="player-name"><span class="player-name-clickable">${player.name}</span></div>
                 </div>
                 <div class="player-meta-line">
-                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${player.posRank || player.pos}</span>
+                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${fptsPosRankLabel || player.pos || displaySlot}</span>
                     <span class="separator">•</span>
                     <span><span class="player-age">${player.age || '?'}</span> y.o. </span>
                     <span class="separator">•</span>
@@ -3209,14 +3249,26 @@ const wrTeStatOrder = [
                 </div>
                 <div class="player-value-line">
                     <span>KTC: <span class="value player-ktc">${ktc}</span></span>
-                    <span>ADP: <span class="value player-adp">${adp}</span></span>
+                    <span>PPG: <span class="value player-ppg">${ppgDisplay}</span></span>
                 </div>
             `;
-            
-            const ageEl = row.querySelector('.player-age'), adpEl = row.querySelector('.player-adp'), ktcEl = row.querySelector('.player-ktc');
+
+            const ageEl = row.querySelector('.player-age');
+            const ktcEl = row.querySelector('.player-ktc');
+            const ppgEl = row.querySelector('.player-ppg');
             if (ageEl && player.age && player.age !== '?') ageEl.style.color = getAgeColorForRoster(player.pos, parseFloat(player.age));
-            if (adpEl && player.adp) adpEl.style.color = getAdpColorForRoster(parseFloat(adp));
-            if (ktcEl && player.ktc) ktcEl.style.color = getKtcColor(player.ktc);
+            if (ktcEl && Number.isFinite(ktcNumeric)) ktcEl.style.color = getKtcColor(ktcNumeric);
+            if (ppgEl && Number.isFinite(ppgRankNumber)) ppgEl.style.color = getConditionalColorByRank(ppgRankNumber, player.pos);
+
+            const appendRankAnnotation = (element, rankValue) => {
+                if (!element) return;
+                element.classList.add('has-rank-annotation');
+                const annotation = createRankAnnotation(rankValue);
+                element.appendChild(annotation);
+            };
+
+            appendRankAnnotation(ktcEl, ktcRankNumber);
+            appendRankAnnotation(ppgEl, ppgRankNumber);
 
             const playerNameClickableEl = row.querySelector('.player-name-clickable');
             if (playerNameClickableEl) {
