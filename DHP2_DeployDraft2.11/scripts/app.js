@@ -395,6 +395,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 
                 updateButtonStates('rosters');
                 contextualControls.classList.remove('hidden');
+                adjustStickyHeaders(); // Recalculate header height for correct padding
                 playerListView.classList.add('hidden');
                 rosterView.classList.remove('hidden');
                 setRosterView('positional'); // Set default view
@@ -533,6 +534,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         state.isCompareMode = true;
                         rosterView.classList.add('is-trade-mode');
                         rosterGrid.classList.add('is-preview-mode');
+                        window.scrollTo(0, 0); // scroll to top
                         updateHeaderPreviewState(); // call before render
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
@@ -559,6 +561,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 clearTrade();
                 window.scrollTo(0, 0); // scroll to top
             } else {
+                window.scrollTo(0, 0); // scroll to top
                 renderTradeBlock();
             }
             renderAllTeamData(state.currentTeams);
