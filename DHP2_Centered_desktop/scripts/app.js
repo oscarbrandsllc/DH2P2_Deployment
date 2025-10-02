@@ -1722,6 +1722,7 @@ const SEASON_META_HEADERS = {
             const player = state.players[playerId];
             if (!player) return { id: playerId, name: 'Unknown Player', pos: '?', age: '?', team: '?', adp: null, ktc: null, slot, posRank: null };
             const valueData = state.isSuperflex ? state.sflxData[playerId] : state.oneQbData[playerId];
+            const statsData = calculatePlayerStatsAndRanks(playerId);
             let lastName = player.last_name || '';
             if (lastName.length > 10) lastName = lastName.slice(0, 10) + '..'; // add ellipsis if truncated
             let displayName = `${player.first_name.charAt(0)}. ${lastName}`;
@@ -1740,7 +1741,10 @@ const SEASON_META_HEADERS = {
                 ktc: valueData?.ktc || null, 
                 slot, 
                 posRank: valueData?.posRank || null,
-                overallRank: valueData?.overallRank || null
+                overallRank: valueData?.overallRank || null,
+                fptsRank: statsData.posRank,
+                ppg: statsData.ppg,
+                ppgRank: statsData.ppgPosRank
             };
         }
 
@@ -3182,7 +3186,7 @@ const wrTeStatOrder = [
                 row.classList.add('player-selected');
             }
 
-            const adp = player.adp ? player.adp.toFixed(1) : '—';
+            const ppg = player.ppg ? parseFloat(player.ppg).toFixed(1) : '—';
             const ktc = player.ktc || '—';
             
             const teamKey = (player.team || 'FA').toUpperCase();
@@ -3193,7 +3197,11 @@ const wrTeStatOrder = [
               ? `<img class="team-logo glow" src="${src}" alt="${teamKey}" width="19" height="19" loading="eager">`
               : `<div class="team-tag" style="background-color: #64748b; color: white;">FA</div>`;
 
-            const posRankColor = getPosRankColor(player.posRank);
+            const fptsPosRank = player.fptsRank ? `${player.pos}·${player.fptsRank}` : player.pos;
+            const posRankColor = getPosRankColor(fptsPosRank);
+
+            const ktcRank = player.posRank ? player.posRank.split('·')[1] || 'NA' : 'NA';
+            const ppgRank = player.ppgRank || 'NA';
 
             row.innerHTML = `
                 <div class="player-main-line">
@@ -3201,21 +3209,22 @@ const wrTeStatOrder = [
                     <div class="player-name"><span class="player-name-clickable">${player.name}</span></div>
                 </div>
                 <div class="player-meta-line">
-                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${player.posRank || player.pos}</span>
+                    <span class="player-pos-rank" style="color: ${posRankColor}; font-weight: 400;">${fptsPosRank}</span>
                     <span class="separator">•</span>
                     <span><span class="player-age">${player.age || '?'}</span> y.o. </span>
                     <span class="separator">•</span>
                     ${teamTagHTML}
                 </div>
                 <div class="player-value-line">
-                    <span>KTC: <span class="value player-ktc">${ktc}</span></span>
-                    <span>ADP: <span class="value player-adp">${adp}</span></span>
+                    <span>KTC: <span class="value player-ktc">${ktc}</span><span class="value-rank-annotation">(${ktcRank})</span></span>
+                    <span>PPG: <span class="value player-ppg">${ppg}</span><span class="value-rank-annotation">(${ppgRank})</span></span>
                 </div>
             `;
             
-            const ageEl = row.querySelector('.player-age'), adpEl = row.querySelector('.player-adp'), ktcEl = row.querySelector('.player-ktc');
+            const ageEl = row.querySelector('.player-age'), ppgEl = row.querySelector('.player-ppg'), ktcEl = row.querySelector('.player-ktc');
             if (ageEl && player.age && player.age !== '?') ageEl.style.color = getAgeColorForRoster(player.pos, parseFloat(player.age));
-            if (adpEl && player.adp) adpEl.style.color = getAdpColorForRoster(parseFloat(adp));
+            // Add color to PPG based on rank
+            if (ppgEl && player.ppg) ppgEl.style.color = getConditionalColorByRank(player.ppgRank, player.pos);
             if (ktcEl && player.ktc) ktcEl.style.color = getKtcColor(player.ktc);
 
             const playerNameClickableEl = row.querySelector('.player-name-clickable');

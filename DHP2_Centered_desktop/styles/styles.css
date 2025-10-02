@@ -1061,6 +1061,14 @@
             color: var(--color-text-primary);
         }
 
+        .value-rank-annotation {
+            vertical-align: super;
+            font-size: 0.7em;
+            margin-left: 0.1em;
+            font-weight: 500;
+            color: var(--color-text-tertiary);
+        }
+
         .pick-row {
             flex-direction: row;
             justify-content: space-between;
