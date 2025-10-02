@@ -494,6 +494,18 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             }
         }
         
+        function scrollRosterPageToTop() {
+            if (document.body?.dataset?.page !== 'rosters') {
+                return;
+            }
+
+            try {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (error) {
+                window.scrollTo(0, 0);
+            }
+        }
+
         // --- Compare & Trade Logic ---
         function handleTeamSelect(e) {
             const header = e.target.closest('.team-header-item');
@@ -513,7 +525,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                     rosterGrid.classList.remove('is-preview-mode');
 
                     clearTrade();
-                    window.scrollTo(0, 0); // scroll to top
+                    scrollRosterPageToTop();
                     updateHeaderPreviewState(); // call before render
                     renderAllTeamData(state.currentTeams);
 
@@ -536,6 +548,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                         updateHeaderPreviewState(); // call before render
                         renderAllTeamData(state.currentTeams);
                         renderTradeBlock();
+                        scrollRosterPageToTop();
                     }
                 }
                 updateCompareButtonState();
@@ -557,9 +570,10 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             updateHeaderPreviewState(); // call before render
             if (!state.isCompareMode) {
                 clearTrade();
-                window.scrollTo(0, 0); // scroll to top
+                scrollRosterPageToTop();
             } else {
                 renderTradeBlock();
+                scrollRosterPageToTop();
             }
             renderAllTeamData(state.currentTeams);
         }
@@ -579,7 +593,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             
             updateCompareButtonState();
             clearTrade();
-            window.scrollTo(0, 0); // scroll to top
+            scrollRosterPageToTop();
             updateHeaderPreviewState(); // call before render
             if (state.currentTeams) {
                 renderAllTeamData(state.currentTeams);
@@ -1635,7 +1649,7 @@ const SEASON_META_HEADERS = {
             const teams = rosters.map(roster => {
                 const owner = userMap[roster.owner_id];
                 const allPlayers = roster.players || [];
-                
+
                 const starterIds = roster.starters || [];
                 const starters = starterIds.map((playerId, index) => {
                     const slot = rosterPositions[index] || 'FLEX';
@@ -1656,6 +1670,7 @@ const SEASON_META_HEADERS = {
                 return {
                     isUserTeam,
                     teamName: owner?.display_name || `Team ${roster.roster_id}`,
+                    record: formatTeamRecord(roster.settings),
                     starters,
                     bench: bench.map(p => getPlayerData(p, 'BN')).sort((a, b) => (b.ktc || 0) - (a.ktc || 0)),
                     taxi,
@@ -1663,7 +1678,7 @@ const SEASON_META_HEADERS = {
                     allPlayers: allPlayers.map(pId => getPlayerData(pId, ''))
                 };
             });
-            
+
             state.currentTeams = teams;
 
             return teams.sort((a, b) => {
@@ -1671,6 +1686,19 @@ const SEASON_META_HEADERS = {
                 if (b.isUserTeam) return 1;
                 return a.teamName.localeCompare(b.teamName);
             });
+        }
+
+        function formatTeamRecord(settings = {}) {
+            const wins = Number.isFinite(settings?.wins) ? settings.wins : null;
+            const losses = Number.isFinite(settings?.losses) ? settings.losses : null;
+            const ties = Number.isFinite(settings?.ties) ? settings.ties : 0;
+
+            if (wins === null || losses === null) {
+                return null;
+            }
+
+            const baseRecord = `${wins}-${losses}`;
+            return ties ? `${baseRecord}-${ties}` : baseRecord;
         }
         
         function getOwnedPicks(rosterId, tradedPicks, leagueInfo) {
@@ -2987,11 +3015,23 @@ const wrTeStatOrder = [
                 const teamNameSpan = document.createElement('span');
                 teamNameSpan.className = 'team-name';
                 teamNameSpan.textContent = team.teamName;
-                header.title = team.teamName;
+
+                if (team.record) {
+                    header.title = `${team.teamName} (${team.record})`;
+                } else {
+                    header.title = team.teamName;
+                }
 
 
                 header.appendChild(checkbox);
                 header.appendChild(teamNameSpan);
+
+                if (team.record) {
+                    const recordSpan = document.createElement('span');
+                    recordSpan.className = 'team-record';
+                    recordSpan.textContent = `(${team.record})`;
+                    header.appendChild(recordSpan);
+                }
 
                 const card = state.currentRosterView === 'positional' ? createPositionalTeamCard(team) : createDepthChartTeamCard(team);
 
@@ -3857,9 +3897,18 @@ const wrTeStatOrder = [
         // --- Utility Functions ---
         function adjustStickyHeaders() {
             const headerContainer = document.getElementById('header-container');
-            if (!headerContainer) return;
+            const rootElement = document.documentElement;
+            if (!headerContainer) {
+                rootElement.style.removeProperty('--roster-header-height');
+                rootElement.style.removeProperty('--roster-header-offset');
+                return;
+            }
+
             const headerHeight = headerContainer.offsetHeight;
-            const rootStyles = getComputedStyle(document.documentElement);
+            const rootStyles = getComputedStyle(rootElement);
+            // The gap is controlled via the --roster-header-gap custom property so designers can fine-tune spacing without
+            // touching the JavaScript. Update the value in styles.css to move the sticky team headers closer to or farther
+            // from the global header.
             const rosterGapRaw = rootStyles.getPropertyValue('--roster-header-gap');
             const rosterGap = Number.parseFloat(rosterGapRaw) || 0;
             const stickyOffset = Math.max(headerHeight - rosterGap, 0);
@@ -3871,12 +3920,15 @@ const wrTeStatOrder = [
 
             const isRosterPage = document.body?.dataset?.page === 'rosters';
             if (isRosterPage) {
-                document.documentElement.style.setProperty('--roster-header-height', `${headerHeight}px`);
+                rootElement.style.setProperty('--roster-header-height', `${headerHeight}px`);
+                rootElement.style.setProperty('--roster-header-offset', `${stickyOffset}px`);
             } else {
-                document.documentElement.style.removeProperty('--roster-header-height');
+                rootElement.style.removeProperty('--roster-header-height');
+                rootElement.style.removeProperty('--roster-header-offset');
             }
         }
         window.addEventListener('resize', adjustStickyHeaders);
+        adjustStickyHeaders();
 
         function syncRosterHeaderPosition() {
             const header = document.getElementById('header-container');
