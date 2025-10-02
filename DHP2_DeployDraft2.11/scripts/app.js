@@ -546,6 +546,14 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             if (appHeader) {
                 appHeader.classList.toggle('preview-active', state.isCompareMode);
             }
+            requestAnimationFrame(() => {
+                adjustStickyHeaders();
+                syncRosterHeaderPosition();
+                if (!state.isCompareMode) {
+                    window.scrollTo({ top: 0, behavior: 'auto' });
+                    requestAnimationFrame(syncRosterHeaderPosition);
+                }
+            });
         }
 
         function handleCompareClick() {
