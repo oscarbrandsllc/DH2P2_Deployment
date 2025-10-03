@@ -1224,7 +1224,16 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
             'FUM': 'fum',
-            'SNP%': 'snp_pct'
+            'SNP%': 'snp_pct',
+            'YDS(t)': 'yds_total',
+            'FPOE': 'fpoe'
+        };
+
+        const WEEKLY_META_HEADERS = {
+            'VS': '__opponent',
+            'vsRK': '__opponent_rank',
+            'VSRK': '__opponent_rank',
+            'VS_RK': '__opponent_rank'
         };
 
         
@@ -1547,6 +1556,18 @@ const SEASON_META_HEADERS = {
 
                     if (header === 'SLPR_ID') {
                         playerId = value.trim();
+                        return;
+                    }
+
+                    const weeklyMetaKey = WEEKLY_META_HEADERS[header];
+                    if (weeklyMetaKey) {
+                        if (weeklyMetaKey === '__opponent') {
+                            const opponent = value.trim();
+                            if (opponent) stats[weeklyMetaKey] = opponent;
+                        } else if (weeklyMetaKey === '__opponent_rank') {
+                            const parsedRank = parseFloat(value);
+                            if (!Number.isNaN(parsedRank)) stats[weeklyMetaKey] = parsedRank;
+                        }
                         return;
                     }
 
@@ -1879,77 +1900,83 @@ const SEASON_META_HEADERS = {
 
             const statLabels = buildStatLabels();
 
-  const qbStatOrder = [
-  'fpts',
-  'pass_rtg',  
-  'pass_yd',
-  'pass_td',
-  'pass_att',
-  'pass_cmp',  
-  'rush_yd',
-  'rush_td',
-  'pass_fd',
-  'imp_per_g',
-  'pass_imp',
-  'pass_imp_per_att',
-  'rush_att',
-  'ypc',
-  'ttt',
-  'prs_pct',
-  'pass_sack',
-  'pass_int',
-  'fum'
-];
+            const qbStatOrder = [
+                'fpts',
+                'pass_rtg',
+                'pass_yd',
+                'pass_td',
+                'pass_att',
+                'pass_cmp',
+                'rush_yd',
+                'rush_td',
+                'pass_fd',
+                'imp_per_g',
+                'pass_imp',
+                'pass_imp_per_att',
+                'rush_att',
+                'ypc',
+                'ttt',
+                'prs_pct',
+                'pass_sack',
+                'pass_int',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
 
-const rbStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rush_att',
-  'rush_yd',
-  'ypc',
-  'rush_td',
-  'elu',
-  'rec',
-  'rec_tgt',
-  'rec_yd',
-  'mtf_per_att',
-  'yco_per_att',  
-  'mtf',
-  'rush_yac',
-  'rush_fd',
-  'rec_td',
-  'rec_fd',
-  'rec_yar',
-  'imp_per_g',
-  'fum'
-];
+            const rbStatOrder = [
+                'fpts',
+                'snp_pct',
+                'rush_att',
+                'rush_yd',
+                'ypc',
+                'rush_td',
+                'elu',
+                'rec',
+                'rec_tgt',
+                'rec_yd',
+                'mtf_per_att',
+                'yco_per_att',
+                'mtf',
+                'rush_yac',
+                'rush_fd',
+                'rec_td',
+                'rec_fd',
+                'rec_yar',
+                'imp_per_g',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
 
-const wrTeStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rec_tgt',
-  'rec',
-  'ts_per_rr',
-  'rec_yd',
-  'rec_td',
-  'yprr',
-  'rec_fd',
-  'first_down_rec_rate',
-  'rec_yar',
-  'ypr',
-  'imp_per_g',
-  'rr',
-  'rush_att',
-  'rush_yd',
-  'rush_td',
-  'ypc',
-  'fum'
-];
+            const wrTeStatOrder = [
+                'fpts',
+                'snp_pct',
+                'rec_tgt',
+                'rec',
+                'ts_per_rr',
+                'rec_yd',
+                'rec_td',
+                'yprr',
+                'rec_fd',
+                'first_down_rec_rate',
+                'rec_yar',
+                'ypr',
+                'imp_per_g',
+                'rr',
+                'rush_att',
+                'rush_yd',
+                'rush_td',
+                'ypc',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
             let orderedStatKeys;
             if (player.pos === 'QB') orderedStatKeys = qbStatOrder;
             else if (player.pos === 'RB') orderedStatKeys = rbStatOrder;
             else if (player.pos === 'WR' || player.pos === 'TE') orderedStatKeys = wrTeStatOrder;
-            else orderedStatKeys = ['fpts', 'pass_att', 'pass_cmp', 'pass_yd', 'pass_td', 'pass_fd', 'imp_per_g', 'pass_rtg', 'pass_imp', 'pass_imp_per_att', 'rush_att', 'rush_yd', 'ypc', 'rush_td', 'rush_fd', 'ttt', 'prs_pct', 'mtf', 'mtf_per_att', 'rush_yac', 'yco_per_att', 'rec_tgt', 'rec', 'rec_yd', 'rec_td', 'rec_fd', 'rec_yar', 'ypr', 'yprr', 'ts_per_rr', 'rr', 'fum', 'snp_pct'];
+            else orderedStatKeys = ['fpts', 'pass_att', 'pass_cmp', 'pass_yd', 'pass_td', 'pass_fd', 'imp_per_g', 'pass_rtg', 'pass_imp', 'pass_imp_per_att', 'rush_att', 'rush_yd', 'ypc', 'rush_td', 'rush_fd', 'ttt', 'prs_pct', 'mtf', 'mtf_per_att', 'rush_yac', 'yco_per_att', 'rec_tgt', 'rec', 'rec_yd', 'rec_td', 'rec_fd', 'rec_yar', 'ypr', 'yprr', 'ts_per_rr', 'rr', 'fum', 'snp_pct', 'yds_total', 'fpoe'];
 
             const container = document.createElement('div');
             container.className = 'game-logs-table-container';
@@ -1978,7 +2005,20 @@ const wrTeStatOrder = [
                 const row = document.createElement('tr');
 
                 const weekTd = document.createElement('td');
-                weekTd.textContent = weekStats.week;
+                const weekNumberSpan = document.createElement('span');
+                weekNumberSpan.textContent = weekStats.week;
+                weekTd.appendChild(weekNumberSpan);
+
+                const rawOpponent = weekStats.stats?.__opponent;
+                if (rawOpponent) {
+                    const opponentSpan = document.createElement('span');
+                    const cleanedOpponent = String(rawOpponent).replace(/\s+/g, '');
+                    opponentSpan.textContent = `(${cleanedOpponent})`;
+                    const opponentRank = weekStats.stats?.__opponent_rank;
+                    opponentSpan.style.color = getOpponentRankColor(opponentRank);
+                    weekTd.appendChild(opponentSpan);
+                }
+
                 row.appendChild(weekTd);
 
                 const isLiveWeek = weekStats.stats?.__live === true;
@@ -2088,6 +2128,7 @@ const wrTeStatOrder = [
 
                 gameLogsWithData.forEach(weekStats => {
                     for (const key in weekStats.stats) {
+                        if (key.startsWith('__')) continue;
                         const statValue = parseFloat(weekStats.stats[key]);
                         if (Number.isNaN(statValue)) continue;
                         if (key === 'snp_pct') {
@@ -2524,72 +2565,78 @@ const wrTeStatOrder = [
             const userPlayer = players[0];
             const otherPlayer = players[1];
 
-   const qbStatOrder = [
-  'fpts',
-  'pass_rtg',  
-  'pass_yd',
-  'pass_td',
-  'pass_att',
-  'pass_cmp',  
-  'rush_yd',
-  'rush_td',
-  'pass_fd',
-  'imp_per_g',
-  'pass_imp',
-  'pass_imp_per_att',
-  'rush_att',
-  'ypc',
-  'ttt',
-  'prs_pct',
-  'pass_sack',
-  'pass_int',
-  'fum'
-];
+            const qbStatOrder = [
+                'fpts',
+                'pass_rtg',
+                'pass_yd',
+                'pass_td',
+                'pass_att',
+                'pass_cmp',
+                'rush_yd',
+                'rush_td',
+                'pass_fd',
+                'imp_per_g',
+                'pass_imp',
+                'pass_imp_per_att',
+                'rush_att',
+                'ypc',
+                'ttt',
+                'prs_pct',
+                'pass_sack',
+                'pass_int',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
 
-const rbStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rush_att',
-  'rush_yd',
-  'ypc',
-  'rush_td',
-  'elu',
-  'rec',
-  'rec_tgt',
-  'rec_yd',
-  'mtf_per_att',
-  'yco_per_att',  
-  'mtf',
-  'rush_yac',
-  'rush_fd',
-  'rec_td',
-  'rec_fd',
-  'rec_yar',
-  'imp_per_g',
-  'fum'
-];
+            const rbStatOrder = [
+                'fpts',
+                'snp_pct',
+                'rush_att',
+                'rush_yd',
+                'ypc',
+                'rush_td',
+                'elu',
+                'rec',
+                'rec_tgt',
+                'rec_yd',
+                'mtf_per_att',
+                'yco_per_att',
+                'mtf',
+                'rush_yac',
+                'rush_fd',
+                'rec_td',
+                'rec_fd',
+                'rec_yar',
+                'imp_per_g',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
 
-const wrTeStatOrder = [
-  'fpts',
-  'snp_pct',
-  'rec_tgt',
-  'rec',
-  'ts_per_rr',
-  'rec_yd',
-  'rec_td',
-  'yprr',
-  'rec_fd',
-  'first_down_rec_rate',
-  'rec_yar',
-  'ypr',
-  'imp_per_g',
-  'rr',
-  'rush_att',
-  'rush_yd',
-  'rush_td',
-  'ypc',
-  'fum'
-];
+            const wrTeStatOrder = [
+                'fpts',
+                'snp_pct',
+                'rec_tgt',
+                'rec',
+                'ts_per_rr',
+                'rec_yd',
+                'rec_td',
+                'yprr',
+                'rec_fd',
+                'first_down_rec_rate',
+                'rec_yar',
+                'ypr',
+                'imp_per_g',
+                'rr',
+                'rush_att',
+                'rush_yd',
+                'rush_td',
+                'ypc',
+                'fum',
+                'yds_total',
+                'fpoe'
+            ];
 
             const getStatOrderForPosition = (pos) => {
                 if (pos === 'QB') return qbStatOrder;
@@ -2637,6 +2684,7 @@ const wrTeStatOrder = [
 
                         player.gameLogs.forEach(week => {
                             for (const key in week.stats) {
+                                if (key.startsWith('__')) continue;
                                 const numericValue = parseFloat(week.stats[key]);
                                 if (Number.isNaN(numericValue)) continue;
                                 if (key === 'snp_pct') {
@@ -3855,6 +3903,16 @@ const wrTeStatOrder = [
 
             return 'var(--color-text-secondary)';
         }
+        function getOpponentRankColor(rank) {
+            const numericRank = Number(rank);
+            if (!Number.isFinite(numericRank) || numericRank <= 0) return 'inherit';
+            if (numericRank <= 8) return '#8BEBCD';
+            if (numericRank <= 16) return '#A4CEFC';
+            if (numericRank <= 24) return '#A08AFF';
+            if (numericRank <= 32) return '#DF6DBC';
+            return 'inherit';
+        }
+
         function getConditionalColorByRank(rank, position) {
             if (typeof rank !== 'number' || rank <= 0)  return 'inherit';
 
