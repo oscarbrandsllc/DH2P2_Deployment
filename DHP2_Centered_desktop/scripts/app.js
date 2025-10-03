@@ -1224,7 +1224,11 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
             'FUM': 'fum',
-            'SNP%': 'snp_pct'
+            'SNP%': 'snp_pct',
+            'YDS(t)': 'yds_t',
+            'FPOE': 'fpoe',
+            'VS': 'vs',
+            'vsRK': 'vs_rk'
         };
 
         
@@ -1552,8 +1556,12 @@ const SEASON_META_HEADERS = {
 
                     const statKey = PLAYER_STAT_HEADER_MAP[header];
                     if (statKey) {
-                        const parsedValue = parseStatValue(header, value);
-                        if (parsedValue !== null) stats[statKey] = parsedValue;
+                        if (statKey === 'vs') {
+                            stats[statKey] = value.trim();
+                        } else {
+                            const parsedValue = parseStatValue(header, value);
+                            if (parsedValue !== null) stats[statKey] = parsedValue;
+                        }
                     }
                 });
 
@@ -1898,7 +1906,9 @@ const SEASON_META_HEADERS = {
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
 
 const rbStatOrder = [
@@ -1921,7 +1931,9 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
 
 const wrTeStatOrder = [
@@ -1943,7 +1955,9 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
             let orderedStatKeys;
             if (player.pos === 'QB') orderedStatKeys = qbStatOrder;
@@ -1978,7 +1992,28 @@ const wrTeStatOrder = [
                 const row = document.createElement('tr');
 
                 const weekTd = document.createElement('td');
-                weekTd.textContent = weekStats.week;
+                const opponent = weekStats.stats?.vs;
+                const opponentRank = weekStats.stats?.vs_rk;
+
+                let opponentHtml = '';
+                if (opponent) {
+                    let color = 'inherit';
+                    if (opponentRank) {
+                        const rank = parseInt(opponentRank, 10);
+                        if (rank <= 8) {
+                            color = '#8BEBCD';
+                        } else if (rank <= 16) {
+                            color = '#A4CEFC';
+                        } else if (rank <= 24) {
+                            color = '#A08AFF';
+                        } else if (rank <= 32) {
+                            color = '#DF6DBC';
+                        }
+                    }
+                    opponentHtml = `(<span style="color: ${color};">${opponent}</span>)`;
+                }
+
+                weekTd.innerHTML = `${weekStats.week}${opponentHtml || ''}`;
                 row.appendChild(weekTd);
 
                 const isLiveWeek = weekStats.stats?.__live === true;
@@ -2543,7 +2578,9 @@ const wrTeStatOrder = [
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
 
 const rbStatOrder = [
@@ -2566,7 +2603,9 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
 
 const wrTeStatOrder = [
@@ -2588,7 +2627,9 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum'
+  'fum',
+  'yds_t',
+  'fpoe'
 ];
 
             const getStatOrderForPosition = (pos) => {

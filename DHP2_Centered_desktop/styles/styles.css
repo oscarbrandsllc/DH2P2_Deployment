@@ -3410,9 +3410,19 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     .pos-color-WR { color: var(--color-text-secondary);}
     .pos-color-TE { color: var(--color-text-secondary);}
     
-    #modal-body th:first-child, #modal-body td:first-child {
-      font-weight: 700;
-      text-align: center;
+    #modal-body th:first-child,
+    #modal-body tfoot th:first-child {
+        font-weight: 700;
+        text-align: center;
+    }
+
+    #modal-body tbody td:first-child {
+        font-weight: 700;
+        text-align: left;
+    }
+
+    #modal-body table tbody td:first-child span {
+        font-size: 0.85em;
     }
 
     #modal-body thead th:first-child, #modal-body tbody td:first-child {
