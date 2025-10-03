@@ -2024,7 +2024,7 @@ const wrTeStatOrder = [
                 if (opponent) {
                     const opponentSpan = document.createElement('span');
                     opponentSpan.className = 'week-opponent-label';
-                    opponentSpan.textContent = `(${opponent})`;
+                    opponentSpan.textContent = ` ${opponent}`;
                     const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
                     if (color) opponentSpan.style.color = color;
                     weekTd.appendChild(opponentSpan);
