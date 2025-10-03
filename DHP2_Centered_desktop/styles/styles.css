@@ -3410,13 +3410,33 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     .pos-color-WR { color: var(--color-text-secondary);}
     .pos-color-TE { color: var(--color-text-secondary);}
     
-    #modal-body th:first-child, #modal-body td:first-child {
-      font-weight: 700;
-      text-align: center;
+    .week-column-header {
+        font-weight: 700;
+        text-align: center;
     }
 
-    #modal-body thead th:first-child, #modal-body tbody td:first-child {
+    #modal-body thead .week-column-header,
+    #modal-body tbody .week-cell,
+    #modal-body tfoot .week-column-header {
         color: var(--color-text-tertiary);
+    }
+
+    #modal-body tbody .week-cell {
+        font-weight: 700;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .week-cell .week-number,
+    .week-opponent-label {
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    .week-opponent-label {
+        font-size: 0.75em;
+        line-height: 1.1;
+        margin-left: 0.1em;
     }
 
 /* · · Table Footer · · */
