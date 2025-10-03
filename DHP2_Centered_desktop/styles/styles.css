@@ -3414,11 +3414,13 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     #modal-body tfoot th:first-child {
         font-weight: 700;
         text-align: center;
+        white-space: nowrap;
     }
 
     #modal-body tbody td:first-child {
         font-weight: 700;
         text-align: left;
+        white-space: nowrap;
     }
 
     #modal-body table tbody td:first-child span {
