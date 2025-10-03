@@ -3412,11 +3412,25 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     
     #modal-body th:first-child, #modal-body td:first-child {
       font-weight: 700;
-      text-align: center;
     }
 
     #modal-body thead th:first-child, #modal-body tbody td:first-child {
         color: var(--color-text-tertiary);
+    }
+
+    #modal-body thead th:first-child,
+    #modal-body tfoot th:first-child {
+        text-align: center;
+    }
+
+    #modal-body tbody td.week-cell {
+        text-align: left;
+    }
+
+    #modal-body tbody td.week-cell .week-opponent-label {
+        margin-left: 0.35rem;
+        font-size: 0.7em;
+        display: inline-block;
     }
 
 /* · · Table Footer · · */
