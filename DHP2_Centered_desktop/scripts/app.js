@@ -1224,11 +1224,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
             'FUM': 'fum',
-            'SNP%': 'snp_pct',
-            'YDS(t)': 'yds_t',
-            'FPOE': 'fpoe',
-            'VS': 'vs',
-            'vsRK': 'vs_rk'
+            'SNP%': 'snp_pct'
         };
 
         
@@ -1556,12 +1552,8 @@ const SEASON_META_HEADERS = {
 
                     const statKey = PLAYER_STAT_HEADER_MAP[header];
                     if (statKey) {
-                        if (statKey === 'vs') {
-                            stats[statKey] = value.trim();
-                        } else {
-                            const parsedValue = parseStatValue(header, value);
-                            if (parsedValue !== null) stats[statKey] = parsedValue;
-                        }
+                        const parsedValue = parseStatValue(header, value);
+                        if (parsedValue !== null) stats[statKey] = parsedValue;
                     }
                 });
 
@@ -1906,9 +1898,7 @@ const SEASON_META_HEADERS = {
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
 
 const rbStatOrder = [
@@ -1931,9 +1921,7 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
 
 const wrTeStatOrder = [
@@ -1955,9 +1943,7 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
             let orderedStatKeys;
             if (player.pos === 'QB') orderedStatKeys = qbStatOrder;
@@ -2010,7 +1996,7 @@ const wrTeStatOrder = [
                             color = '#DF6DBC';
                         }
                     }
-                    opponentHtml = `(<span style="color: ${color};">${opponent}</span>)`;
+                    opponentHtml = ` <span class="opponent-info">(<span style="color: ${color};">${opponent}</span>)</span>`;
                 }
 
                 weekTd.innerHTML = `${weekStats.week}${opponentHtml || ''}`;
@@ -2578,9 +2564,7 @@ const wrTeStatOrder = [
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
 
 const rbStatOrder = [
@@ -2603,9 +2587,7 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
 
 const wrTeStatOrder = [
@@ -2627,9 +2609,7 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum',
-  'yds_t',
-  'fpoe'
+  'fum'
 ];
 
             const getStatOrderForPosition = (pos) => {
