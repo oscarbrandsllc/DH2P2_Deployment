@@ -1224,7 +1224,14 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
             'FUM': 'fum',
-            'SNP%': 'snp_pct'
+            'SNP%': 'snp_pct',
+            'YDS(t)': 'yds_total',
+            'FPOE': 'fpoe'
+        };
+
+        const WEEKLY_META_HEADER_MAP = {
+            'VS': 'opponent',
+            'vsRK': 'opponent_rank'
         };
 
         
@@ -1550,6 +1557,18 @@ const SEASON_META_HEADERS = {
                         return;
                     }
 
+                    const metaKey = WEEKLY_META_HEADER_MAP[header];
+                    if (metaKey) {
+                        if (metaKey === 'opponent_rank') {
+                            const parsed = parseFloat(value.trim());
+                            if (!Number.isNaN(parsed)) stats[metaKey] = parsed;
+                        } else {
+                            const trimmedOpponent = value.trim();
+                            if (trimmedOpponent) stats[metaKey] = trimmedOpponent;
+                        }
+                        return;
+                    }
+
                     const statKey = PLAYER_STAT_HEADER_MAP[header];
                     if (statKey) {
                         const parsedValue = parseStatValue(header, value);
@@ -1784,6 +1803,16 @@ const SEASON_META_HEADERS = {
             renderGameLogs(gameLogs, player, playerRanks);
         }
 
+        function getOpponentRankColor(rank) {
+            const numericRank = typeof rank === 'number' ? rank : parseFloat(rank);
+            if (!Number.isFinite(numericRank)) return null;
+            if (numericRank <= 8) return '#8BEBCD';
+            if (numericRank <= 16) return '#A4CEFC';
+            if (numericRank <= 24) return '#A08AFF';
+            if (numericRank <= 32) return '#DF6DBC';
+            return null;
+        }
+
         function renderGameLogs(gameLogs, player, playerRanks) {
             const league = state.leagues.find(l => l.league_id === state.currentLeagueId);
             if (!league) return;
@@ -1879,9 +1908,9 @@ const SEASON_META_HEADERS = {
 
             const statLabels = buildStatLabels();
 
-  const qbStatOrder = [
+const qbStatOrder = [
   'fpts',
-  'pass_rtg',  
+  'pass_rtg',
   'pass_yd',
   'pass_td',
   'pass_att',
@@ -1898,7 +1927,9 @@ const SEASON_META_HEADERS = {
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
 
 const rbStatOrder = [
@@ -1921,7 +1952,9 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
 
 const wrTeStatOrder = [
@@ -1943,13 +1976,15 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
             let orderedStatKeys;
             if (player.pos === 'QB') orderedStatKeys = qbStatOrder;
             else if (player.pos === 'RB') orderedStatKeys = rbStatOrder;
             else if (player.pos === 'WR' || player.pos === 'TE') orderedStatKeys = wrTeStatOrder;
-            else orderedStatKeys = ['fpts', 'pass_att', 'pass_cmp', 'pass_yd', 'pass_td', 'pass_fd', 'imp_per_g', 'pass_rtg', 'pass_imp', 'pass_imp_per_att', 'rush_att', 'rush_yd', 'ypc', 'rush_td', 'rush_fd', 'ttt', 'prs_pct', 'mtf', 'mtf_per_att', 'rush_yac', 'yco_per_att', 'rec_tgt', 'rec', 'rec_yd', 'rec_td', 'rec_fd', 'rec_yar', 'ypr', 'yprr', 'ts_per_rr', 'rr', 'fum', 'snp_pct'];
+            else orderedStatKeys = ['fpts', 'pass_att', 'pass_cmp', 'pass_yd', 'pass_td', 'pass_fd', 'imp_per_g', 'pass_rtg', 'pass_imp', 'pass_imp_per_att', 'rush_att', 'rush_yd', 'ypc', 'rush_td', 'rush_fd', 'ttt', 'prs_pct', 'mtf', 'mtf_per_att', 'rush_yac', 'yco_per_att', 'rec_tgt', 'rec', 'rec_yd', 'rec_td', 'rec_fd', 'rec_yar', 'ypr', 'yprr', 'ts_per_rr', 'rr', 'fum', 'snp_pct', 'yds_total', 'fpoe'];
 
             const container = document.createElement('div');
             container.className = 'game-logs-table-container';
@@ -1960,6 +1995,7 @@ const wrTeStatOrder = [
 
             const headerRow = document.createElement('tr');
             const wkTh = document.createElement('th');
+            wkTh.classList.add('week-column-header');
             wkTh.textContent = 'WK';
             headerRow.appendChild(wkTh);
 
@@ -1978,7 +2014,17 @@ const wrTeStatOrder = [
                 const row = document.createElement('tr');
 
                 const weekTd = document.createElement('td');
+                weekTd.classList.add('week-cell');
                 weekTd.textContent = weekStats.week;
+                const opponent = weekStats.stats?.opponent;
+                if (opponent) {
+                    const opponentSpan = document.createElement('span');
+                    opponentSpan.className = 'week-opponent-label';
+                    opponentSpan.textContent = `(${opponent})`;
+                    const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
+                    if (color) opponentSpan.style.color = color;
+                    weekTd.appendChild(opponentSpan);
+                }
                 row.appendChild(weekTd);
 
                 const isLiveWeek = weekStats.stats?.__live === true;
@@ -2076,7 +2122,7 @@ const wrTeStatOrder = [
                 const tfoot = document.createElement('tfoot');
                 const footerRow = document.createElement('tr');
                 const totalTh = document.createElement('th');
-                totalTh.className = 'modal-table-footer-label';
+                totalTh.className = 'modal-table-footer-label week-column-header';
                 const gamesPlayed = getAdjustedGamesPlayed(player.id, scoringSettings);
                 totalTh.innerHTML = `<span class="season-label">2025</span><br><span class="gp-label">(GP: ${gamesPlayed})</span>`;
                 footerRow.appendChild(totalTh);
@@ -2543,7 +2589,9 @@ const wrTeStatOrder = [
   'prs_pct',
   'pass_sack',
   'pass_int',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
 
 const rbStatOrder = [
@@ -2566,7 +2614,9 @@ const rbStatOrder = [
   'rec_fd',
   'rec_yar',
   'imp_per_g',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
 
 const wrTeStatOrder = [
@@ -2588,14 +2638,16 @@ const wrTeStatOrder = [
   'rush_yd',
   'rush_td',
   'ypc',
-  'fum'
+  'fum',
+  'yds_total',
+  'fpoe'
 ];
 
             const getStatOrderForPosition = (pos) => {
                 if (pos === 'QB') return qbStatOrder;
                 if (pos === 'RB') return rbStatOrder;
                 if (pos === 'WR' || pos === 'TE') return wrTeStatOrder;
-                return []; // default empty order
+                return ['fpts', 'pass_att', 'pass_cmp', 'pass_yd', 'pass_td', 'pass_fd', 'imp_per_g', 'pass_rtg', 'pass_imp', 'pass_imp_per_att', 'rush_att', 'rush_yd', 'ypc', 'rush_td', 'rush_fd', 'ttt', 'prs_pct', 'mtf', 'mtf_per_att', 'rush_yac', 'yco_per_att', 'rec_tgt', 'rec', 'rec_yd', 'rec_td', 'rec_fd', 'rec_yar', 'ypr', 'yprr', 'ts_per_rr', 'rr', 'fum', 'snp_pct', 'yds_total', 'fpoe'];
             };
 
             const userPlayerStatOrder = getStatOrderForPosition(userPlayer.pos);
@@ -2939,6 +2991,8 @@ const wrTeStatOrder = [
                     'ypr': 'Yards per Reception',
                     'fum': 'Fumbles Lost',
                     'snp_pct': 'Snap Percentage',
+                    'yds_total': 'Total Yards (sheet provided)',
+                    'fpoe': 'Fantasy Points Over Expected',
                 };
 
                 let listHtml = '<h4>Player Comparison Stats Key<i class="fa-solid fa-square-xmark" id="close-comparison-key"></i></h4><ul>';
