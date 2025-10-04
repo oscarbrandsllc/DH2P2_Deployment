@@ -898,11 +898,24 @@
 		.team-header-item:has(.team-compare-checkbox.selected) {
           border: 1px solid #6300ffaa;
 		}
-        .team-card { 
-            display: flex; 
-            flex-direction: column; 
+        .team-card {
+            display: flex;
+            flex-direction: column;
             gap: 0.25rem;
         }
+
+@media (min-width: 820px) {
+    /*
+     * The roster columns are heavy (blurred cards, gradients, etc.).
+     * Using content-visibility lets the browser skip painting the offscreen
+     * cards until they are close to the viewport, which cuts down the scroll
+     * jank that shows up on desktop without changing the header layout.
+     */
+    .team-card {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 1400px;
+    }
+}
 
         .roster-section h3 {
       font-size: 0.8rem;
