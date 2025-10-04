@@ -1441,10 +1441,11 @@ const SEASON_META_HEADERS = {
             return rankStr;
         }
 
-        function createRankAnnotation(rank) {
+        function createRankAnnotation(rank, { wrapInParens = true } = {}) {
             const span = document.createElement('span');
             span.className = 'stat-rank-annotation';
-            span.textContent = `(${getRankDisplayText(rank)})`;
+            const displayText = getRankDisplayText(rank);
+            span.textContent = wrapInParens ? `(${displayText})` : displayText;
             return span;
         }
 
@@ -2022,11 +2023,31 @@ const wrTeStatOrder = [
                 weekTd.appendChild(weekNumberSpan);
                 const opponent = weekStats.stats?.opponent;
                 if (opponent) {
+                    const separatorSpan = document.createElement('span');
+                    separatorSpan.className = 'week-opponent-separator';
+                    separatorSpan.textContent = ' ·';
+                    const weekNumberColor = typeof window !== 'undefined'
+                        ? window.getComputedStyle(weekNumberSpan)?.color
+                        : null;
+                    if (weekNumberColor) {
+                        separatorSpan.style.color = weekNumberColor;
+                    }
+
                     const opponentSpan = document.createElement('span');
                     opponentSpan.className = 'week-opponent-label';
-                    opponentSpan.textContent = `(${opponent})`;
+                    opponentSpan.textContent = ` ${opponent}`;
                     const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
                     if (color) opponentSpan.style.color = color;
+
+                    const opponentRank = weekStats.stats?.opponent_rank;
+                    const opponentRankDisplay = getRankDisplayText(opponentRank);
+                    if (opponentRankDisplay !== 'NA') {
+                        opponentSpan.classList.add('has-rank-annotation');
+                        const rankAnnotation = createRankAnnotation(opponentRank, { wrapInParens: false });
+                        opponentSpan.appendChild(rankAnnotation);
+                    }
+
+                    weekTd.appendChild(separatorSpan);
                     weekTd.appendChild(opponentSpan);
                 }
                 row.appendChild(weekTd);
