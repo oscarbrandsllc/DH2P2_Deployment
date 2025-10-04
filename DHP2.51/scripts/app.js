@@ -46,6 +46,9 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const modalBody = document.getElementById('modal-body');
         const playerComparisonModal = document.getElementById('player-comparison-modal');
         const comparisonBackgroundOverlay = document.getElementById('comparison-modal-background-overlay');
+        const supportsContentVisibility = typeof CSS !== 'undefined'
+            && typeof CSS.supports === 'function'
+            && CSS.supports('content-visibility', 'auto');
 
         const COMPARE_BUTTON_PREVIEW_HTML = '<span class="button-text">Preview</span>';
         const COMPARE_BUTTON_SHOW_ALL_HTML = '<span class="compare-show-all-stack"><i aria-hidden="true" class="fa-solid fa-arrows-left-right-to-line compare-show-all-icon"></i><span class="compare-show-all-label">Show All</span></span>';
@@ -1441,10 +1444,11 @@ const SEASON_META_HEADERS = {
             return rankStr;
         }
 
-        function createRankAnnotation(rank) {
+        function createRankAnnotation(rank, { wrapInParens = true } = {}) {
             const span = document.createElement('span');
             span.className = 'stat-rank-annotation';
-            span.textContent = `(${getRankDisplayText(rank)})`;
+            const displayText = getRankDisplayText(rank);
+            span.textContent = wrapInParens ? `(${displayText})` : displayText;
             return span;
         }
 
@@ -2022,11 +2026,31 @@ const wrTeStatOrder = [
                 weekTd.appendChild(weekNumberSpan);
                 const opponent = weekStats.stats?.opponent;
                 if (opponent) {
+                    const separatorSpan = document.createElement('span');
+                    separatorSpan.className = 'week-opponent-separator';
+                    separatorSpan.textContent = ' ·';
+                    const weekNumberColor = typeof window !== 'undefined'
+                        ? window.getComputedStyle(weekNumberSpan)?.color
+                        : null;
+                    if (weekNumberColor) {
+                        separatorSpan.style.color = weekNumberColor;
+                    }
+
                     const opponentSpan = document.createElement('span');
                     opponentSpan.className = 'week-opponent-label';
-                    opponentSpan.textContent = `(${opponent})`;
+                    opponentSpan.textContent = ` ${opponent}`;
                     const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
                     if (color) opponentSpan.style.color = color;
+
+                    const opponentRank = weekStats.stats?.opponent_rank;
+                    const opponentRankDisplay = getRankDisplayText(opponentRank);
+                    if (opponentRankDisplay !== 'NA') {
+                        opponentSpan.classList.add('has-rank-annotation');
+                        const rankAnnotation = createRankAnnotation(opponentRank, { wrapInParens: false });
+                        opponentSpan.appendChild(rankAnnotation);
+                    }
+
+                    weekTd.appendChild(separatorSpan);
                     weekTd.appendChild(opponentSpan);
                 }
                 row.appendChild(weekTd);
@@ -3034,6 +3058,16 @@ const wrTeStatOrder = [
             leagueSelect.disabled = false;
         }
 
+        function calibrateTeamCardIntrinsicSize(card) {
+            if (!supportsContentVisibility || !card) return;
+            requestAnimationFrame(() => {
+                const measuredHeight = card.getBoundingClientRect().height;
+                if (measuredHeight > 0) {
+                    card.style.setProperty('--team-card-intrinsic-size', `${Math.ceil(measuredHeight)}px`);
+                }
+            });
+        }
+
         function renderAllTeamData(teams) {
             rosterGrid.innerHTML = '';
             rosterGrid.style.justifyContent = ''; // Reset style
@@ -3085,6 +3119,7 @@ const wrTeStatOrder = [
                 columnWrapper.appendChild(header);
                 columnWrapper.appendChild(card);
                 rosterGrid.appendChild(columnWrapper);
+                calibrateTeamCardIntrinsicSize(card);
             });
 
             if (compareSearchInput && compareSearchInput.value) {

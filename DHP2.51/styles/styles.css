@@ -898,11 +898,20 @@
 		.team-header-item:has(.team-compare-checkbox.selected) {
           border: 1px solid #6300ffaa;
 		}
-        .team-card { 
-            display: flex; 
-            flex-direction: column; 
+        .team-card {
+            display: flex;
+            flex-direction: column;
             gap: 0.25rem;
         }
+
+@media (min-width: 820px) {
+  @supports (content-visibility: auto) {
+    #rosterGrid .team-card {
+        content-visibility: auto;
+        contain-intrinsic-size: auto var(--team-card-intrinsic-size, 1200px);
+    }
+  }
+}
 
         .roster-section h3 {
       font-size: 0.8rem;
@@ -3428,9 +3437,14 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     }
 
     .week-cell .week-number,
-    .week-opponent-label {
+    .week-opponent-label,
+    .week-opponent-separator {
         display: inline-block;
         vertical-align: middle;
+    }
+
+    .week-opponent-separator {
+        font-weight: 700;
     }
 
     .week-opponent-label {
