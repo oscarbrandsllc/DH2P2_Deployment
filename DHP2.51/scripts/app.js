@@ -1441,10 +1441,12 @@ const SEASON_META_HEADERS = {
             return rankStr;
         }
 
-        function createRankAnnotation(rank) {
+        function createRankAnnotation(rank, options = {}) {
+            const { wrapInParens = true } = options;
             const span = document.createElement('span');
             span.className = 'stat-rank-annotation';
-            span.textContent = `(${getRankDisplayText(rank)})`;
+            const displayText = getRankDisplayText(rank);
+            span.textContent = wrapInParens ? `(${displayText})` : displayText;
             return span;
         }
 
@@ -2024,9 +2026,18 @@ const wrTeStatOrder = [
                 if (opponent) {
                     const opponentSpan = document.createElement('span');
                     opponentSpan.className = 'week-opponent-label';
-                    opponentSpan.textContent = `(${opponent})`;
+                    opponentSpan.textContent = ` · ${opponent}`;
                     const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
                     if (color) opponentSpan.style.color = color;
+
+                    const opponentRank = weekStats.stats?.opponent_rank;
+                    const opponentRankDisplay = getRankDisplayText(opponentRank);
+                    if (opponentRankDisplay !== 'NA') {
+                        opponentSpan.classList.add('has-rank-annotation');
+                        const rankAnnotation = createRankAnnotation(opponentRank, { wrapInParens: false });
+                        opponentSpan.appendChild(rankAnnotation);
+                    }
+
                     weekTd.appendChild(opponentSpan);
                 }
                 row.appendChild(weekTd);
