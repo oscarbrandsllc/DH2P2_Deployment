@@ -8,6 +8,41 @@
     const initialUsername = params.get('username');
     const initialLeagueId = params.get('leagueId');
 
+    const resolveSleeperApiBase = () => {
+      if (typeof window === 'undefined') {
+        return 'https://api.sleeper.app/v1';
+      }
+
+      const explicit = typeof window.__DYNHUB_SLEEPER_API_BASE === 'string'
+        ? window.__DYNHUB_SLEEPER_API_BASE.trim()
+        : '';
+
+      if (explicit) {
+        return explicit.replace(/\/$/, '');
+      }
+
+      const host = window.location?.hostname || '';
+      const netlifyHost = /\.netlify\.(app|live)$/.test(host);
+      const localHost = host === 'localhost' || host === '127.0.0.1';
+
+      if (netlifyHost || localHost) {
+        return '/api/sleeper/v1';
+      }
+
+      return 'https://api.sleeper.app/v1';
+    };
+
+    const API_BASE = resolveSleeperApiBase();
+    const joinSleeperPath = (path) => `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+    const shouldBypassProxyCache = (() => {
+      if (typeof window === 'undefined') { return false; }
+      if (typeof window.__DYNHUB_BYPASS_PROXY_CACHE === 'boolean') {
+        return window.__DYNHUB_BYPASS_PROXY_CACHE;
+      }
+      return params.get('fresh') === '1';
+    })();
+    const proxySupportsBypass = API_BASE.startsWith('/');
+
     const elements = {
       usernameInput: document.getElementById('usernameInput'),
       leagueSelect: document.getElementById('leagueSelect'),
@@ -514,18 +549,27 @@
       if (state.cache[url]) {
         return state.cache[url];
       }
-      const response = await fetch(url);
+
+      const shouldBypass = shouldBypassProxyCache && proxySupportsBypass && url.startsWith(API_BASE);
+      const finalUrl = shouldBypass
+        ? `${url}${url.includes('?') ? '&' : '?'}fresh=1`
+        : url;
+
+      const response = await fetch(finalUrl);
       if (!response.ok) {
         throw new Error(`Request failed: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
       state.cache[url] = data;
+      if (finalUrl !== url) {
+        state.cache[finalUrl] = data;
+      }
       return data;
     }
 
     async function fetchSleeperPlayers() {
       if (Object.keys(state.players).length > 0) return;
-      state.players = await fetchWithCache('https://api.sleeper.app/v1/players/nfl');
+      state.players = await fetchWithCache(joinSleeperPath('players/nfl'));
     }
 
     async function fetchKTCData() {
@@ -628,14 +672,14 @@
     }
 
     async function fetchUserAndLeagues(username) {
-      const user = await fetchWithCache(`https://api.sleeper.app/v1/user/${username}`);
+      const user = await fetchWithCache(joinSleeperPath(`user/${username}`));
       if (!user || !user.user_id) {
         throw new Error('Sleeper user not found.');
       }
       state.userId = user.user_id;
 
       const currentYear = new Date().getFullYear();
-      const leagues = await fetchWithCache(`https://api.sleeper.app/v1/user/${state.userId}/leagues/nfl/${currentYear}`);
+      const leagues = await fetchWithCache(joinSleeperPath(`user/${state.userId}/leagues/nfl/${currentYear}`));
       if (!Array.isArray(leagues) || leagues.length === 0) {
         throw new Error('No active leagues found for this user in the current season.');
       }
@@ -648,7 +692,7 @@
       if (state.playerStatsSeason === season && Object.keys(state.playerStats).length > 0) {
         return;
       }
-      const url = `https://api.sleeper.app/v1/stats/nfl/regular/${season}`;
+      const url = joinSleeperPath(`stats/nfl/regular/${season}`);
       const rawStats = await fetchWithCache(url);
       state.playerStats = transformSeasonStats(rawStats);
       state.playerStatsSeason = season;
@@ -706,9 +750,9 @@
         await ensurePlayerStats(leagueInfo.season ?? new Date().getFullYear());
 
         const [rosters, users, tradedPicks] = await Promise.all([
-          fetchWithCache(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-          fetchWithCache(`https://api.sleeper.app/v1/league/${leagueId}/users`),
-          fetchWithCache(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
+          fetchWithCache(joinSleeperPath(`league/${leagueId}/rosters`)),
+          fetchWithCache(joinSleeperPath(`league/${leagueId}/users`)),
+          fetchWithCache(joinSleeperPath(`league/${leagueId}/traded_picks`)),
         ]);
 
         const radarSlots = buildRadarSlots(leagueInfo.roster_positions || []);
