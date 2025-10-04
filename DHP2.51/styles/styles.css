@@ -3428,9 +3428,14 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     }
 
     .week-cell .week-number,
-    .week-opponent-label {
+    .week-opponent-label,
+    .week-opponent-separator {
         display: inline-block;
         vertical-align: middle;
+    }
+
+    .week-opponent-separator {
+        font-weight: 700;
     }
 
     .week-opponent-label {
