@@ -2024,9 +2024,18 @@ const wrTeStatOrder = [
                 if (opponent) {
                     const opponentSpan = document.createElement('span');
                     opponentSpan.className = 'week-opponent-label';
-                    opponentSpan.textContent = `(${opponent})`;
+                    opponentSpan.textContent = ` · ${opponent}`;
                     const color = getOpponentRankColor(weekStats.stats?.opponent_rank);
                     if (color) opponentSpan.style.color = color;
+
+                    const opponentRank = weekStats.stats?.opponent_rank;
+                    const opponentRankDisplay = getRankDisplayText(opponentRank);
+                    if (opponentRankDisplay !== 'NA') {
+                        opponentSpan.classList.add('has-rank-annotation');
+                        const rankAnnotation = createRankAnnotation(opponentRank);
+                        opponentSpan.appendChild(rankAnnotation);
+                    }
+
                     weekTd.appendChild(opponentSpan);
                 }
                 row.appendChild(weekTd);
