@@ -1,0 +1,16 @@
+# This file configures the Netlify deployment and caching settings.
+
+[[edge_functions]]
+  path = "/api/*"
+  function = "proxy"
+
+# Caching rules for static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/styles/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

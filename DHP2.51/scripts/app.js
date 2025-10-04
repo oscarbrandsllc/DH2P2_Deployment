@@ -203,7 +203,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         let nextRyColorIndex = 0;
 
         // --- Constants ---
-        const API_BASE = 'https://api.sleeper.app/v1';
+        const API_BASE = '/api/sleeper/v1';
         const GOOGLE_SHEET_ID = '1MDTf1IouUIrm4qabQT9E5T0FsJhQtmaX55P32XK5c_0';
         const PLAYER_STATS_SHEET_ID = '1i-cKqSfYw0iFiV9S-wBw8lwZePwXZ7kcaWMdnaMTHDs';
         const PLAYER_STATS_SHEETS = { season: 'SZN', seasonRanks: 'SZN_RKs', weeks: { 1: 'WK1', 2: 'WK2', 3: 'WK3', 4: 'WK4' } };
@@ -982,8 +982,8 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             const sheetNames = { oneQb: 'KTC_1QB', sflx: 'KTC_SFLX' };
             try {
                 const [oneQbCsv, sflxCsv] = await Promise.all([
-                    fetch(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetNames.oneQb}`).then(res => res.text()),
-                    fetch(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetNames.sflx}`).then(res => res.text())
+                    fetch(`/api/gsheets/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetNames.oneQb}`).then(res => res.text()),
+                    fetch(`/api/gsheets/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetNames.sflx}`).then(res => res.text())
                 ]);
                 state.oneQbData = parseSheetData(oneQbCsv);
                 state.sflxData = parseSheetData(sflxCsv);
@@ -1066,10 +1066,10 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
                 return;
             }
             try {
-                const seasonPromise = fetch(`https://docs.google.com/spreadsheets/d/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${PLAYER_STATS_SHEETS.season}`).then(res => res.text());
-                const seasonRanksPromise = fetch(`https://docs.google.com/spreadsheets/d/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${PLAYER_STATS_SHEETS.seasonRanks}`).then(res => res.text());
+                const seasonPromise = fetch(`/api/gsheets/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${PLAYER_STATS_SHEETS.season}`).then(res => res.text());
+                const seasonRanksPromise = fetch(`/api/gsheets/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${PLAYER_STATS_SHEETS.seasonRanks}`).then(res => res.text());
                 const weeklyPromises = Object.entries(PLAYER_STATS_SHEETS.weeks).map(async ([week, sheetName]) => {
-                    const csv = await fetch(`https://docs.google.com/spreadsheets/d/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetName}`).then(res => res.text());
+                    const csv = await fetch(`/api/gsheets/${PLAYER_STATS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetName}`).then(res => res.text());
                     return { week: Number(week), csv };
                 });
 
